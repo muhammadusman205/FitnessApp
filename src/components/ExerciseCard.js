@@ -1,0 +1,196 @@
+import { memo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../utils/theme';
+import { useFadeIn } from '../hooks/useFadeIn';
+import { useScalePress } from '../hooks/useScalePress';
+
+const PLACEHOLDER_IMAGE =
+  'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=80';
+
+const IMAGE_HEIGHT_LIST = 168;
+const IMAGE_HEIGHT_CAROUSEL = 188;
+
+const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout = 'list', cardWidth }) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageSource, setImageSource] = useState(item.gifUrl || PLACEHOLDER_IMAGE);
+  const fadeAnim = useFadeIn(index);
+  const { animatedStyle, onPressIn, onPressOut } = useScalePress({ activeScale: 0.97 });
+
+  const isCarousel = layout === 'carousel';
+  const imageH = isCarousel ? IMAGE_HEIGHT_CAROUSEL : IMAGE_HEIGHT_LIST;
+  const widthStyle = cardWidth ? { width: cardWidth } : { alignSelf: 'stretch' };
+
+  const muscle = (item.target || 'full body').toString();
+  const equip = (item.equipment || 'body weight').toString();
+
+  return (
+    <Animated.View style={[widthStyle, styles.outer, { opacity: fadeAnim }, animatedStyle]}>
+      <View style={[styles.cardShadow, isCarousel && styles.cardShadowCarousel]}>
+        <View style={styles.card}>
+          <View style={[styles.imageWrap, { height: imageH }]}>
+            <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={styles.imagePress}>
+              <Image
+                source={{ uri: imageSource, cache: 'force-cache' }}
+                style={[styles.image, { height: imageH }]}
+                resizeMode="cover"
+                onLoadStart={() => setImageLoading(true)}
+                onLoadEnd={() => setImageLoading(false)}
+                onError={() => {
+                  setImageSource(PLACEHOLDER_IMAGE);
+                  setImageLoading(false);
+                }}
+              />
+              {imageLoading ? (
+                <View style={[styles.skeleton, { height: imageH }]}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                </View>
+              ) : null}
+              <LinearGradient
+                colors={['transparent', 'rgba(15,23,42,0.15)', 'rgba(15,23,42,0.92)']}
+                locations={[0, 0.45, 1]}
+                style={styles.imageGradient}
+              />
+              <View style={styles.chipRow}>
+                <View style={styles.chip}>
+                  <Text style={styles.chipText} numberOfLines={1}>
+                    {muscle}
+                  </Text>
+                </View>
+                <View style={[styles.chip, styles.chipAlt]}>
+                  <Text style={styles.chipText} numberOfLines={1}>
+                    {equip}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.titleBlock}>
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.name}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable style={styles.favBtn} onPress={onFavorite} hitSlop={8}>
+              <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  outer: {
+    marginBottom: theme.spacing.sm,
+  },
+  cardShadow: {
+    borderRadius: theme.radius.lg,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  cardShadowCarousel: {
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  card: {
+    borderRadius: theme.radius.lg,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.card,
+  },
+  imageWrap: {
+    width: '100%',
+    position: 'relative',
+    borderRadius: theme.radius.lg,
+    overflow: 'hidden',
+  },
+  imagePress: {
+    flex: 1,
+    height: '100%',
+  },
+  image: {
+    width: '100%',
+    backgroundColor: '#1E293B',
+  },
+  skeleton: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#334155',
+  },
+  imageGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  favBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  chipRow: {
+    position: 'absolute',
+    bottom: 52,
+    left: 12,
+    right: 56,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chip: {
+    maxWidth: '48%',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  chipAlt: {
+    backgroundColor: 'rgba(74,144,226,0.35)',
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'capitalize',
+  },
+  titleBlock: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    paddingTop: 4,
+  },
+  name: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+});
+
+export default memo(ExerciseCard);

@@ -1,0 +1,444 @@
+import { useCallback, useEffect, useMemo } from 'react';
+import {
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import ScreenContainer from '../components/ScreenContainer';
+import { useAuth } from '../context/AuthContext';
+import { useFitness } from '../context/FitnessContext';
+import { useToast } from '../context/ToastContext';
+import { theme } from '../utils/theme';
+import Card from '../components/Card';
+import LoadingState from '../components/LoadingState';
+import ExerciseCard from '../components/ExerciseCard';
+import SkeletonCard from '../components/SkeletonCard';
+import ProgramCard, { PROGRAM_CARD_WIDTH } from '../components/ProgramCard';
+import { useFadeIn } from '../hooks/useFadeIn';
+import { WORKOUT_PROGRAMS } from '../data/workoutPrograms';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const RECOMMENDED_CARD_W = Math.min(SCREEN_W * 0.78, 300);
+const SNAP_PROGRAM = PROGRAM_CARD_WIDTH + 12;
+const SNAP_REC = RECOMMENDED_CARD_W + 12;
+
+const GOALS = ['general fitness', 'weight loss', 'muscle gain'];
+
+const CONTINUE_MOCK = {
+  title: 'Upper body · Week 2',
+  subtitle: '12 min left · 4 exercises',
+  programId: 'push-day',
+};
+
+const HomeScreen = ({ navigation }) => {
+  const { user, logout } = useAuth();
+  const {
+    favorites,
+    workouts,
+    progress,
+    goal,
+    updateGoal,
+    loadingUserData,
+    loadingExercises,
+    recommendedExercises,
+    toggleFavorite,
+    exercises,
+  } = useFitness();
+  const { showToast } = useToast();
+
+  const stats = [
+    { label: 'Favorites', value: favorites.length },
+    { label: 'Planned', value: workouts.length },
+    { label: 'Logs', value: progress.length },
+  ];
+
+  const onGoalSelect = async (nextGoal) => {
+    try {
+      await updateGoal(nextGoal);
+      showToast(`Goal updated: ${nextGoal}`);
+    } catch (error) {
+      showToast('Could not update your goal.', 'error');
+    }
+  };
+
+  const weeklyWorkouts = progress.slice(-7).reduce((sum, item) => sum + (Number(item.completedWorkouts) || 0), 0);
+  const consistency = `${Math.min(progress.slice(-7).length, 7)}/7 days`;
+  const topRecommendations = recommendedExercises.slice(0, 12);
+  const favoriteIds = useMemo(() => new Set(favorites.map((item) => item.id)), [favorites]);
+  const sectionFade = useFadeIn(0, 80);
+
+  useEffect(() => {
+    const urls = topRecommendations
+      .slice(0, 10)
+      .map((e) => e.gifUrl)
+      .filter(Boolean);
+    urls.forEach((u) => {
+      Image.prefetch(u).catch(() => {});
+    });
+  }, [topRecommendations]);
+
+  const renderProgram = useCallback(
+    ({ item, index }) => (
+      <ProgramCard
+        program={item}
+        index={index}
+        onPress={() => navigation.navigate('ProgramDetail', { programId: item.id })}
+      />
+    ),
+    [navigation]
+  );
+
+  const renderRecommendation = useCallback(
+    ({ item, index }) => (
+      <View style={{ width: RECOMMENDED_CARD_W, marginRight: theme.spacing.sm }}>
+        <ExerciseCard
+          item={item}
+          index={index}
+          layout="carousel"
+          cardWidth={RECOMMENDED_CARD_W}
+          onPress={() => navigation.navigate('Exercises', { screen: 'ExerciseDetail', params: { exercise: item } })}
+          onFavorite={() => toggleFavorite(item)}
+          isFavorite={favoriteIds.has(item.id)}
+        />
+      </View>
+    ),
+    [favoriteIds, navigation, toggleFavorite]
+  );
+
+  const renderProgramSkeletons = () => (
+    <View style={styles.horizontalRow}>
+      {[0, 1, 2].map((i) => (
+        <SkeletonCard key={`ps-${i}`} variant="block" style={{ width: PROGRAM_CARD_WIDTH, height: 200 }} />
+      ))}
+    </View>
+  );
+
+  const renderRecSkeletons = () => (
+    <View style={styles.horizontalRow}>
+      {[0, 1, 2].map((i) => (
+        <SkeletonCard key={`rs-${i}`} variant="exercise" style={{ width: RECOMMENDED_CARD_W, height: 220 }} />
+      ))}
+    </View>
+  );
+
+  return (
+    <ScreenContainer>
+      <ScrollView
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Card style={styles.hero}>
+          <Text style={styles.greeting}>Welcome back, {user?.email?.split('@')[0] || 'Athlete'} 👋</Text>
+          <Text style={styles.subtitle}>Train with purpose — pick a program or dive into moves.</Text>
+          <Pressable style={styles.logoutButton} onPress={logout} accessibilityRole="button" accessibilityLabel="Logout">
+            <Text style={styles.logout}>Logout</Text>
+          </Pressable>
+        </Card>
+
+        <Pressable
+          onPress={() => navigation.navigate('ProgramDetail', { programId: WORKOUT_PROGRAMS[0].id })}
+          style={styles.ctaWrap}
+        >
+          <LinearGradient colors={['#4A90E2', '#2563EB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaGradient}>
+            <View style={styles.ctaTextWrap}>
+              <Text style={styles.ctaTitle}>Start workout</Text>
+              <Text style={styles.ctaSub}>{`Jump into today's session`}</Text>
+            </View>
+            <Ionicons name="play-circle" size={44} color="rgba(255,255,255,0.95)" />
+          </LinearGradient>
+        </Pressable>
+
+        <Card style={styles.goalCard}>
+          <Text style={styles.goalTitle}>Goal</Text>
+          <Text style={styles.goalSubtitle}>Recommendations adapt to your focus.</Text>
+          <View style={styles.goalRow}>
+            {GOALS.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => onGoalSelect(item)}
+                style={[styles.goalChip, goal === item && styles.goalChipActive]}
+              >
+                <Text style={[styles.goalChipText, goal === item && styles.goalChipTextActive]}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Card>
+
+        {loadingUserData ? <LoadingState label="Syncing your data..." /> : null}
+
+        <Animated.View style={{ opacity: sectionFade }}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Programs for you</Text>
+            <Ionicons name="albums-outline" size={18} color={theme.colors.primary} />
+          </View>
+        </Animated.View>
+        {loadingExercises && !exercises.length ? (
+          renderProgramSkeletons()
+        ) : (
+          <View style={styles.carouselHost}>
+            <FlatList
+              data={WORKOUT_PROGRAMS}
+              horizontal
+              keyExtractor={(item) => item.id}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={SNAP_PROGRAM}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={styles.horizontalListContent}
+              renderItem={renderProgram}
+            />
+          </View>
+        )}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recommended exercises</Text>
+          <Ionicons name="sparkles-outline" size={18} color={theme.colors.primary} />
+        </View>
+        {loadingExercises && !exercises.length ? (
+          renderRecSkeletons()
+        ) : (
+          <View style={styles.carouselHost}>
+            <FlatList
+              data={topRecommendations}
+              horizontal
+              keyExtractor={(item, index) => item.id?.toString() || `rec-${index}`}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={SNAP_REC}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={styles.horizontalListContent}
+              renderItem={renderRecommendation}
+              ListEmptyComponent={<Text style={styles.emptyHint}>Open Exercises to load your library.</Text>}
+            />
+          </View>
+        )}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Continue session</Text>
+          <Ionicons name="time-outline" size={18} color={theme.colors.primary} />
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={SCREEN_W * 0.88 + 12}
+          decelerationRate="fast"
+          contentContainerStyle={styles.horizontalListContent}
+        >
+          <Pressable
+            onPress={() => navigation.navigate('ProgramDetail', { programId: CONTINUE_MOCK.programId })}
+            style={[styles.continueCard, { width: SCREEN_W * 0.88 }]}
+          >
+            <LinearGradient colors={['#EEF3FB', '#DDEAFB']} style={StyleSheet.absoluteFill} />
+            <Text style={styles.continueTitle}>{CONTINUE_MOCK.title}</Text>
+            <Text style={styles.continueSub}>{CONTINUE_MOCK.subtitle}</Text>
+            <Text style={styles.continueLink}>Resume →</Text>
+          </Pressable>
+        </ScrollView>
+
+        <View style={styles.grid}>
+          {stats.map((item) => (
+            <Card key={item.label} style={styles.statCard}>
+              <Text style={styles.statValue}>{item.value}</Text>
+              <Text style={styles.statLabel}>{item.label}</Text>
+            </Card>
+          ))}
+        </View>
+        <Card style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>This week</Text>
+          <Text style={styles.summaryText}>Workouts completed: {weeklyWorkouts}</Text>
+          <Text style={styles.summaryText}>Consistency: {consistency}</Text>
+        </Card>
+      </ScrollView>
+    </ScreenContainer>
+  );
+};
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.lg * 2,
+  },
+  hero: {
+    backgroundColor: '#DDEAFB',
+    marginBottom: theme.spacing.md,
+  },
+  greeting: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  subtitle: {
+    color: theme.colors.textSecondary,
+    marginTop: 6,
+  },
+  logout: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  logoutButton: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#EEF5FF',
+  },
+  ctaWrap: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.radius.lg,
+    overflow: 'hidden',
+    ...theme.shadow,
+  },
+  ctaGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+  },
+  ctaTextWrap: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  ctaTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  ctaSub: {
+    marginTop: 4,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  goalCard: {
+    marginBottom: theme.spacing.md,
+  },
+  goalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  goalSubtitle: {
+    marginTop: 4,
+    color: theme.colors.textSecondary,
+  },
+  goalRow: {
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  goalChip: {
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#E8EEF7',
+    paddingHorizontal: 12,
+  },
+  goalChipActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  goalChipText: {
+    color: theme.colors.primary,
+    textTransform: 'capitalize',
+    fontWeight: '600',
+  },
+  goalChipTextActive: {
+    color: '#F8FBFF',
+  },
+  sectionHeader: {
+    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  carouselHost: {
+    marginBottom: theme.spacing.sm,
+    minHeight: 210,
+  },
+  horizontalListContent: {
+    paddingRight: theme.spacing.md,
+    paddingBottom: theme.spacing.xs,
+  },
+  horizontalRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  emptyHint: {
+    color: theme.colors.textSecondary,
+    paddingVertical: theme.spacing.md,
+  },
+  continueCard: {
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
+    marginRight: theme.spacing.sm,
+    overflow: 'hidden',
+    minHeight: 120,
+    justifyContent: 'center',
+    ...theme.shadow,
+  },
+  continueTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+  },
+  continueSub: {
+    marginTop: 6,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  continueLink: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  grid: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    paddingVertical: theme.spacing.lg,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  statLabel: {
+    marginTop: 4,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+  },
+  summaryCard: {
+    marginTop: theme.spacing.sm,
+    backgroundColor: '#EEF5FF',
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  summaryText: {
+    marginTop: 6,
+    color: theme.colors.textSecondary,
+  },
+});
+
+export default HomeScreen;
