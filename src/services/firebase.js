@@ -58,40 +58,6 @@ export const firebaseInitError = !isFirebaseConfigValid ? new Error(CONFIG_ERROR
 
 const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 
-// Per-variable debug (loaded vs missing)
-const logEnvPresence = (label, value) => {
-  const status = isMissingOrInvalid(value) ? '[missing]' : '[loaded]';
-  if (isDev) {
-    console.log(`[Firebase env] ${label}:`, status);
-  }
-};
-
-logEnvPresence('EXPO_PUBLIC_FIREBASE_API_KEY', env.apiKey);
-logEnvPresence('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN', env.authDomain);
-logEnvPresence('EXPO_PUBLIC_FIREBASE_PROJECT_ID', env.projectId);
-logEnvPresence('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET', env.storageBucket);
-logEnvPresence('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', env.messagingSenderId);
-logEnvPresence('EXPO_PUBLIC_FIREBASE_APP_ID', env.appId);
-
-// Metro inlines EXPO_PUBLIC_* at bundle time; `process.env` may not list every key on device.
-// Verify injection by reading each variable statically (required by Expo).
-const envSnapshot = {
-  EXPO_PUBLIC_FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ? '[set]' : '[missing]',
-  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ? '[set]' : '[missing]',
-  EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ? '[set]' : '[missing]',
-  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ? '[set]' : '[missing]',
-  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ? '[set]' : '[missing]',
-  EXPO_PUBLIC_FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ? '[set]' : '[missing]',
-};
-if (isDev) {
-  console.log('[Firebase] EXPO_PUBLIC_FIREBASE_* (Metro static injection check):', envSnapshot);
-}
-
-const firebaseEnvKeys = Object.keys(process.env || {}).filter((k) => k.startsWith('EXPO_PUBLIC_FIREBASE_'));
-if (isDev) {
-  console.log('[Firebase] process.env keys matching EXPO_PUBLIC_FIREBASE_* (may be empty on RN):', firebaseEnvKeys);
-}
-
 if (!isFirebaseConfigValid) {
   if (isDev) {
     console.warn('[Firebase] Missing or invalid keys:', invalidConfigKeys);
@@ -122,6 +88,14 @@ if (!isFirebaseConfigValid) {
     auth = getAuth(app);
   }
   db = getFirestore(app);
+}
+
+if (isDev) {
+  console.log(
+    isFirebaseConfigValid && auth && db
+      ? 'Firebase initialized successfully.'
+      : 'Firebase initialization incomplete. Check environment and setup.'
+  );
 }
 
 export { auth };

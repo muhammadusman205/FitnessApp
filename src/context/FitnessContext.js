@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import {
@@ -15,6 +17,9 @@ const FitnessContext = createContext(null);
 const PAGE_SIZE = 50;
 const PLAN_KIND = 'plan';
 const SESSION_KIND = 'session';
+const USER_DATA_CACHE_PREFIX = 'fitness_user_cache_v1';
+const FIRESTORE_PERMISSION_HELP =
+  'Firestore permission denied. Update rules to allow users to read/write only their own documents: match /users/{userId}/{document=**} { allow read, write: if request.auth != null && request.auth.uid == userId; }';
 
 export const FitnessProvider = ({ children }) => {
   const { user } = useAuth();
@@ -36,16 +41,85 @@ export const FitnessProvider = ({ children }) => {
   const [userDataError, setUserDataError] = useState(null);
   const mountedRef = useRef(true);
   const pendingFavoriteIdsRef = useRef(new Set());
+  const userDataLoadInFlightRef = useRef(false);
+  const offlineWarnedRef = useRef(false);
+  const lastLoadedUidRef = useRef(null);
+  const userDataFailureCountRef = useRef(0);
+  const userDataRetryTimeoutRef = useRef(null);
+  const userDataCircuitOpenRef = useRef(false);
+  const userId = user?.uid || null;
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      if (userDataRetryTimeoutRef.current) {
+        clearTimeout(userDataRetryTimeoutRef.current);
+      }
     };
   }, []);
 
   const createTempId = useCallback((prefix) => {
     tempIdRef.current += 1;
     return `temp-${prefix}-${Date.now()}-${tempIdRef.current}`;
+  }, []);
+
+  const getUserCacheKey = useCallback((uid) => `${USER_DATA_CACHE_PREFIX}_${uid}`, []);
+
+  const writeUserCache = useCallback(
+    async (uid, payload) => {
+      if (!uid) return;
+      try {
+        await AsyncStorage.setItem(
+          getUserCacheKey(uid),
+          JSON.stringify({
+            storedAt: Date.now(),
+            ...payload,
+          })
+        );
+      } catch (error) {
+        console.warn('[FitnessContext] Failed to write user cache:', error?.message);
+      }
+    },
+    [getUserCacheKey]
+  );
+
+  const readUserCache = useCallback(
+    async (uid) => {
+      if (!uid) return null;
+      try {
+        const raw = await AsyncStorage.getItem(getUserCacheKey(uid));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        return parsed;
+      } catch (error) {
+        console.warn('[FitnessContext] Failed to read user cache:', error?.message);
+        return null;
+      }
+    },
+    [getUserCacheKey]
+  );
+
+  const classifyFirestoreError = useCallback((error, hasNetwork) => {
+    const code = `${error?.code || ''}`.toLowerCase();
+    const message = `${error?.message || ''}`.toLowerCase();
+
+    if (code.includes('permission-denied')) return 'permission';
+    if (code.includes('unauthenticated')) return 'unauthenticated';
+    if (code.includes('failed-precondition')) return 'precondition';
+    if (code.includes('not-found')) return 'not-found';
+    if (!hasNetwork || code.includes('unavailable') || message.includes('offline')) return 'network';
+    return 'unknown';
+  }, []);
+
+  const logFirestoreError = useCallback((operation, error, context = {}) => {
+    console.error(`[FitnessContext] Firestore ${operation} failed`, {
+      code: error?.code,
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      ...context,
+    });
   }, []);
 
   const loadInitialExercises = useCallback(async () => {
@@ -165,32 +239,61 @@ export const FitnessProvider = ({ children }) => {
     }
   }, [bodyPartFilter, hasMore, isLoadingMore, loadingExercises]);
 
-  const loadUserData = useCallback(async () => {
+  const loadUserData = useCallback(async (mode = 'normal') => {
+    const isManualRefresh = mode === 'manual';
     if (!mountedRef.current) return;
+    if (userDataLoadInFlightRef.current) return;
+    if (userDataCircuitOpenRef.current && !isManualRefresh) {
+      setUserDataError('Could not load your data. Pull down to refresh.');
+      return;
+    }
+    if (!isManualRefresh && userId && lastLoadedUidRef.current === userId) return;
+    if (isManualRefresh) {
+      userDataFailureCountRef.current = 0;
+      userDataCircuitOpenRef.current = false;
+      if (userDataRetryTimeoutRef.current) {
+        clearTimeout(userDataRetryTimeoutRef.current);
+        userDataRetryTimeoutRef.current = null;
+      }
+    }
+    userDataLoadInFlightRef.current = true;
     setLoadingUserData(true);
     setUserDataError(null);
     try {
-      if (!user) {
+      if (!userId) {
         if (!mountedRef.current) return;
         setFavorites([]);
         setWorkouts([]);
         setProgress([]);
         setGoal('general fitness');
         setUserDataError(null);
+        lastLoadedUidRef.current = null;
         return;
       }
+      if (!db) {
+        throw new Error('Firestore is not initialized. Check Firebase configuration.');
+      }
+
+      const netState = await NetInfo.fetch();
+      const hasNetwork = netState.isConnected !== false && netState.isInternetReachable !== false;
+      console.log('[FitnessContext] Network status before user sync:', {
+        isConnected: netState.isConnected,
+        isInternetReachable: netState.isInternetReachable,
+        hasNetwork,
+      });
+      console.log('[FitnessContext] Fetching Firestore user data for uid:', userId);
 
       const [favoritesSnap, workoutsSnap, progressSnap, profileSnap] = await Promise.all([
-        getDocs(collection(db, 'users', user.uid, 'favorites')),
-        getDocs(collection(db, 'users', user.uid, 'workouts')),
-        getDocs(collection(db, 'users', user.uid, 'progress')),
-        getDoc(doc(db, 'users', user.uid)),
+        getDocs(collection(db, 'users', userId, 'favorites')),
+        getDocs(collection(db, 'users', userId, 'workouts')),
+        getDocs(collection(db, 'users', userId, 'progress')),
+        getDoc(doc(db, 'users', userId)),
       ]);
 
       if (!mountedRef.current) return;
       setFavorites(favoritesSnap.docs.map((item) => ({ docId: item.id, ...item.data() })));
-      setWorkouts(
-        workoutsSnap.docs.map((item) => {
+      const sanitizedWorkouts = workoutsSnap.docs
+        .map((item) => {
           const data = item.data();
           return {
             docId: item.id,
@@ -198,11 +301,90 @@ export const FitnessProvider = ({ children }) => {
             kind: data.kind || PLAN_KIND,
           };
         })
-      );
+        .filter((item) => {
+          if (item.kind !== PLAN_KIND) return true;
+          return typeof item.title === 'string' && item.title.trim().length > 1;
+        });
+      setWorkouts(sanitizedWorkouts);
       setProgress(progressSnap.docs.map((item) => ({ docId: item.id, ...item.data() })));
-      setGoal(profileSnap.exists() ? profileSnap.data().goal || 'general fitness' : 'general fitness');
+      const nextGoal = profileSnap.exists() ? profileSnap.data().goal || 'general fitness' : 'general fitness';
+      setGoal(nextGoal);
       setUserDataError(null);
+      offlineWarnedRef.current = false;
+      lastLoadedUidRef.current = userId;
+      userDataFailureCountRef.current = 0;
+      userDataCircuitOpenRef.current = false;
+      if (userDataRetryTimeoutRef.current) {
+        clearTimeout(userDataRetryTimeoutRef.current);
+        userDataRetryTimeoutRef.current = null;
+      }
+      await writeUserCache(userId, {
+        favorites: favoritesSnap.docs.map((item) => ({ docId: item.id, ...item.data() })),
+        workouts: sanitizedWorkouts,
+        progress: progressSnap.docs.map((item) => ({ docId: item.id, ...item.data() })),
+        goal: nextGoal,
+      });
     } catch (error) {
+      const message = `${error?.message || ''}`.toLowerCase();
+      const code = `${error?.code || ''}`.toLowerCase();
+      const netState = await NetInfo.fetch();
+      const hasNetwork = netState.isConnected !== false && netState.isInternetReachable !== false;
+      const errorType = classifyFirestoreError(error, hasNetwork);
+      const cached = await readUserCache(userId);
+      logFirestoreError('loadUserData', error, { userId, hasNetwork, errorType });
+
+      if (cached && mountedRef.current) {
+        console.log('[FitnessContext] Loaded cached user data after sync failure.', {
+          hasCachedFavorites: Array.isArray(cached.favorites) && cached.favorites.length > 0,
+          hasCachedWorkouts: Array.isArray(cached.workouts) && cached.workouts.length > 0,
+          hasCachedProgress: Array.isArray(cached.progress) && cached.progress.length > 0,
+        });
+        setFavorites(Array.isArray(cached.favorites) ? cached.favorites : []);
+        setWorkouts(Array.isArray(cached.workouts) ? cached.workouts : []);
+        setProgress(Array.isArray(cached.progress) ? cached.progress : []);
+        setGoal(typeof cached.goal === 'string' ? cached.goal : 'general fitness');
+      }
+
+      if (errorType === 'permission') {
+        if (!mountedRef.current) return;
+        console.error('[FitnessContext] Permission root cause detected.', {
+          userId,
+          help: FIRESTORE_PERMISSION_HELP,
+        });
+        setUserDataError('Firestore permission denied. Check security rules.');
+        return;
+      }
+
+      if (errorType === 'network') {
+        // Keep previously loaded local state on offline startup.
+        if (!offlineWarnedRef.current) {
+          console.warn('[FitnessContext] Offline mode detected. Using locally available user data.');
+          offlineWarnedRef.current = true;
+        }
+        if (!mountedRef.current) return;
+        userDataFailureCountRef.current += 1;
+        const failures = userDataFailureCountRef.current;
+        if (failures >= 3) {
+          userDataCircuitOpenRef.current = true;
+          setUserDataError('Could not load your data. Pull down to refresh.');
+          return;
+        }
+        const backoffMs = 1000 * (2 ** (failures - 1));
+        if (userDataRetryTimeoutRef.current) {
+          clearTimeout(userDataRetryTimeoutRef.current);
+        }
+        userDataRetryTimeoutRef.current = setTimeout(() => {
+          userDataRetryTimeoutRef.current = null;
+          loadUserData('retry');
+        }, backoffMs);
+        setUserDataError(
+          hasNetwork
+            ? 'Cloud sync is temporarily unavailable. Showing cached data.'
+            : 'You are offline. Showing your last available data.'
+        );
+        return;
+      }
+
       console.warn('[FitnessContext] Failed to load user data:', error?.message);
       if (!mountedRef.current) return;
       setFavorites([]);
@@ -210,18 +392,19 @@ export const FitnessProvider = ({ children }) => {
       setProgress([]);
       setUserDataError('Could not sync your account data. Please try again.');
     } finally {
+      userDataLoadInFlightRef.current = false;
       if (mountedRef.current) {
         setLoadingUserData(false);
       }
     }
-  }, [user]);
+  }, [classifyFirestoreError, logFirestoreError, readUserCache, userId, writeUserCache]);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       loadUserData();
     });
     return () => task.cancel();
-  }, [loadUserData]);
+  }, [userId]);
 
   const addFavorite = useCallback(
     async (exercise) => {
@@ -304,17 +487,24 @@ export const FitnessProvider = ({ children }) => {
   const addWorkout = useCallback(
     async (workout) => {
       if (!user) return;
+      const normalizedTitle = typeof workout?.title === 'string' ? workout.title.trim() : '';
+      const normalizedDay = typeof workout?.day === 'string' ? workout.day.trim() : '';
+      if (normalizedTitle.length < 2 || normalizedDay.length < 2) {
+        throw new Error('Workout title and day must each be at least 2 characters.');
+      }
       const tempDocId = createTempId('plan');
       const optimistic = {
         docId: tempDocId,
-        ...workout,
+        title: normalizedTitle,
+        day: normalizedDay,
         kind: PLAN_KIND,
         createdAt: Date.now(),
       };
       setWorkouts((prev) => [optimistic, ...prev]);
       try {
         const docRef = await addDoc(collection(db, 'users', user.uid, 'workouts'), {
-          ...workout,
+          title: normalizedTitle,
+          day: normalizedDay,
           kind: PLAN_KIND,
           createdAt: serverTimestamp(),
         });
@@ -396,6 +586,10 @@ export const FitnessProvider = ({ children }) => {
   const addProgressEntry = useCallback(
     async (entry) => {
       if (!user) return;
+      if (!db) {
+        throw new Error('Firestore is not initialized. Check Firebase configuration.');
+      }
+      console.log('[FitnessContext] addProgressEntry called with:', entry);
       const tempDocId = createTempId('progress');
       const optimistic = {
         docId: tempDocId,
@@ -404,19 +598,41 @@ export const FitnessProvider = ({ children }) => {
       };
       setProgress((prev) => [optimistic, ...prev]);
       try {
+        console.log('[FitnessContext] Saving progress entry to Firestore path:', `users/${user.uid}/progress`);
         const docRef = await addDoc(collection(db, 'users', user.uid, 'progress'), {
           ...entry,
           createdAt: serverTimestamp(),
         });
         setProgress((prev) => prev.map((item) => (item.docId === tempDocId ? { ...item, docId: docRef.id } : item)));
       } catch (error) {
+        const netState = await NetInfo.fetch();
+        const hasNetwork = netState.isConnected !== false && netState.isInternetReachable !== false;
+        const errorType = classifyFirestoreError(error, hasNetwork);
+        logFirestoreError('addProgressEntry', error, {
+          userId: user.uid,
+          path: `users/${user.uid}/progress`,
+          hasNetwork,
+          errorType,
+        });
         setProgress((prev) => prev.filter((item) => item.docId !== tempDocId));
-        setUserDataError('Could not sync progress entry. Please try again.');
+        if (errorType === 'permission') {
+          console.error('[FitnessContext] Permission root cause detected.', { help: FIRESTORE_PERMISSION_HELP });
+          setUserDataError('Firestore permission denied. Check security rules.');
+        } else if (errorType === 'network') {
+          setUserDataError('Cloud sync is temporarily unavailable. Showing cached data.');
+        } else {
+          setUserDataError('Could not sync progress entry. Please try again.');
+        }
         throw error;
       }
     },
-    [createTempId, user]
+    [classifyFirestoreError, createTempId, logFirestoreError, user]
   );
+
+  useEffect(() => {
+    if (!userId) return;
+    writeUserCache(userId, { favorites, workouts, progress, goal });
+  }, [favorites, goal, progress, userId, workouts, writeUserCache]);
 
   const deleteProgressEntry = useCallback(
     async (progressDocId) => {
@@ -485,7 +701,7 @@ export const FitnessProvider = ({ children }) => {
       refreshExercises: loadInitialExercises,
       loadingUserData,
       userDataError,
-      refreshUserData: loadUserData,
+      refreshUserData: () => loadUserData('manual'),
       favorites,
       workouts,
       progress,

@@ -60,6 +60,7 @@ const HomeScreen = ({ navigation }) => {
     () => workouts.filter((item) => (item.kind || 'plan') === 'plan'),
     [workouts]
   );
+  const hasAnyUserData = favorites.length > 0 || plannedWorkouts.length > 0 || progress.length > 0;
 
   const lastSession = completedWorkouts[0] || null;
   const resumeTitle = lastSession?.programTitle || `${lastSession?.programType || 'Session'} workout`;
@@ -227,7 +228,7 @@ const HomeScreen = ({ navigation }) => {
           </Card>
         ) : null}
 
-        {loadingUserData ? <LoadingState label="Syncing your data..." /> : null}
+        {loadingUserData && !hasAnyUserData ? <LoadingState label="Syncing your data..." /> : null}
 
         <Animated.View style={{ opacity: sectionFade }}>
           <View style={styles.sectionHeader}>

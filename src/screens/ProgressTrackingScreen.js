@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Dimensions, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
 import ScreenContainer from '../components/ScreenContainer';
 import InputField from '../components/InputField';
 import AppButton from '../components/AppButton';
@@ -17,6 +18,36 @@ const ProgressTrackingScreen = () => {
   const [weight, setWeight] = useState('');
   const [completedWorkouts, setCompletedWorkouts] = useState('');
   const [savingProgress, setSavingProgress] = useState(false);
+  const [chartWidth, setChartWidth] = useState(Math.max(Dimensions.get('window').width - 32, 240));
+
+  const parseEntryDate = (entry) => {
+    if (!entry) return null;
+    if (entry.createdAt?.seconds) {
+      return new Date(entry.createdAt.seconds * 1000);
+    }
+    if (typeof entry.date === 'number') return new Date(entry.date);
+    if (typeof entry.date === 'string') {
+      const parsed = new Date(entry.date);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+  };
+
+  const formatDisplayDate = (entry, withTime = false) => {
+    const dt = parseEntryDate(entry);
+    if (!dt) return '--';
+    return dt.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: withTime ? undefined : 'numeric',
+      hour: withTime ? 'numeric' : undefined,
+      minute: withTime ? '2-digit' : undefined,
+    });
+  };
+
+  useEffect(() => {
+    console.log('[ProgressTrackingScreen] Progress entries in UI:', progress.length);
+  }, [progress.length]);
 
   const onSave = async () => {
     const weightValue = Number(weight);
@@ -36,6 +67,7 @@ const ProgressTrackingScreen = () => {
     }
     try {
       setSavingProgress(true);
+      console.log('[ProgressTrackingScreen] Saving progress input:', { weightValue, workoutsValue });
       await addProgressEntry({
         weight: weightValue,
         completedWorkouts: workoutsValue,
@@ -71,8 +103,19 @@ const ProgressTrackingScreen = () => {
 
   const chartData = useMemo(() => {
     const recent = [...progress].slice(-6);
+    const dayCount = recent.reduce((acc, item) => {
+      const dateKey = formatDisplayDate(item, false).replace(/,\s*\d{4}$/, '');
+      acc[dateKey] = (acc[dateKey] || 0) + 1;
+      return acc;
+    }, {});
     return {
-      labels: recent.map((item) => item.date?.slice(5) || '--'),
+      labels: recent.map((item) => {
+        const dateLabel = formatDisplayDate(item, false).replace(/,\s*\d{4}$/, '');
+        if ((dayCount[dateLabel] || 0) > 1) {
+          return formatDisplayDate(item, true).replace(/,\s*\d{4}/, '');
+        }
+        return dateLabel;
+      }),
       datasets: [{ data: recent.map((item) => Number(item.weight) || 0) }],
     };
   }, [progress]);
@@ -121,25 +164,35 @@ const ProgressTrackingScreen = () => {
         {loadingUserData && !progress.length ? <LoadingState label="Loading progress history..." /> : null}
         <Text style={styles.sectionTitle}>Weight Trend</Text>
         {chartData.labels.length > 0 ? (
-          <LineChart
-            data={chartData}
-            width={Dimensions.get('window').width - 32}
-            height={220}
-            yAxisSuffix="kg"
-            chartConfig={{
-              backgroundGradientFrom: theme.colors.progressChartBackground,
-              backgroundGradientTo: theme.colors.progressChartBackground,
-              decimalPlaces: 1,
-              color: () => theme.colors.primary,
-              labelColor: () => theme.colors.textSecondary,
-              propsForBackgroundLines: { stroke: theme.colors.border, strokeDasharray: '' },
-              propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primary },
+          <View
+            style={styles.chartWrap}
+            onLayout={(event) => {
+              const nextWidth = Math.max(event.nativeEvent.layout.width - theme.spacing.sm, 240);
+              if (Math.abs(nextWidth - chartWidth) > 2) {
+                setChartWidth(nextWidth);
+              }
             }}
-            bezier
-            style={styles.chart}
-            accessibilityLabel="Weight trend chart"
-            accessibilityHint="Shows your recent weight trend over time."
-          />
+          >
+            <LineChart
+              data={chartData}
+              width={chartWidth}
+              height={220}
+              yAxisSuffix="kg"
+              chartConfig={{
+                backgroundGradientFrom: theme.colors.progressChartBackground,
+                backgroundGradientTo: theme.colors.progressChartBackground,
+                decimalPlaces: 1,
+                color: () => theme.colors.primary,
+                labelColor: () => theme.colors.textSecondary,
+                propsForBackgroundLines: { stroke: theme.colors.border, strokeDasharray: '' },
+                propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primary },
+              }}
+              bezier
+              style={styles.chart}
+              accessibilityLabel="Weight trend chart"
+              accessibilityHint="Shows your recent weight trend over time."
+            />
+          </View>
         ) : (
           <EmptyState
             icon="stats-chart-outline"
@@ -159,13 +212,23 @@ const ProgressTrackingScreen = () => {
           initialNumToRender={8}
           renderItem={({ item }) => (
             <Card style={styles.item}>
-              <Text style={styles.itemText}>
-                {item.date}: {item.weight}kg, workouts: {item.completedWorkouts}
-              </Text>
+              <Pressable
+                style={styles.deleteIconButton}
+                onPress={() => onDeleteEntry(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete progress entry for ${formatDisplayDate(item)}`}
+              >
+                <Ionicons name="trash-outline" size={18} color={theme.colors.danger} />
+              </Pressable>
+              <Text style={styles.itemDate}>{formatDisplayDate(item)}</Text>
+              <Text style={styles.itemWeight}>{item.weight} kg</Text>
+              <View style={styles.workoutBadge}>
+                <Text style={styles.workoutBadgeText}>Workouts: {item.completedWorkouts}</Text>
+              </View>
               <Pressable
                 onPress={() => onDeleteEntry(item)}
                 accessibilityRole="button"
-                accessibilityLabel={`Delete progress entry for ${item.date}`}
+                accessibilityLabel={`Delete progress entry for ${formatDisplayDate(item)}`}
                 accessibilityHint="Removes this progress log entry."
               >
                 <Text style={styles.deleteAction}>Delete</Text>
@@ -202,12 +265,42 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     marginBottom: theme.spacing.sm,
   },
-  item: {
-    padding: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
+  chartWrap: {
+    width: '100%',
+    overflow: 'hidden',
   },
-  itemText: {
+  item: {
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
+    position: 'relative',
+  },
+  itemDate: {
     color: theme.colors.textSecondary,
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  itemWeight: {
+    color: theme.colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 18,
+  },
+  workoutBadge: {
+    marginTop: theme.spacing.xs,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.cardTintBlueLight,
+  },
+  workoutBadgeText: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  deleteIconButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
   },
   summaryCard: {
     marginBottom: theme.spacing.sm,
@@ -229,6 +322,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     color: theme.colors.danger,
     fontWeight: '700',
+    alignSelf: 'flex-start',
   },
 });
 

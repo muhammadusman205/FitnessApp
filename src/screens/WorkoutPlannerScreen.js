@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import ScreenContainer from '../components/ScreenContainer';
 import InputField from '../components/InputField';
 import AppButton from '../components/AppButton';
@@ -22,7 +23,13 @@ const WorkoutPlannerScreen = () => {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const plannedWorkouts = useMemo(
-    () => workouts.filter((item) => (item.kind || 'plan') === 'plan'),
+    () =>
+      workouts.filter(
+        (item) =>
+          (item.kind || 'plan') === 'plan' &&
+          typeof item.title === 'string' &&
+          item.title.trim().length > 1
+      ),
     [workouts]
   );
 
@@ -131,10 +138,14 @@ const WorkoutPlannerScreen = () => {
               ) : (
                 <>
                   <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemSubtitle}>{item.day}</Text>
+                  <View style={styles.dayRow}>
+                    <Ionicons name="calendar-outline" size={14} color={theme.colors.textSecondary} />
+                    <Text style={styles.itemSubtitle}>{item.day}</Text>
+                  </View>
                   <View style={styles.rowActions}>
                     <Pressable
                       onPress={() => startEditing(item)}
+                      style={styles.editButton}
                       accessibilityRole="button"
                       accessibilityLabel={`Edit ${item.title} plan`}
                       accessibilityHint="Enables editing for this workout plan."
@@ -143,6 +154,7 @@ const WorkoutPlannerScreen = () => {
                     </Pressable>
                     <Pressable
                       onPress={() => onDeleteWorkout(item)}
+                      style={styles.deleteButton}
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${item.title} plan`}
                       accessibilityHint="Deletes this workout plan."
@@ -187,16 +199,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   item: {
-    padding: theme.spacing.sm,
+    padding: theme.spacing.md,
     marginBottom: theme.spacing.xs,
   },
   itemTitle: {
     color: theme.colors.textPrimary,
     fontWeight: '600',
+    fontSize: 16,
+  },
+  dayRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   itemSubtitle: {
     color: theme.colors.textSecondary,
-    marginTop: 2,
+    fontSize: 14,
   },
   errorWrap: {
     marginBottom: theme.spacing.sm,
@@ -210,9 +229,23 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '700',
   },
+  editButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
   deleteAction: {
     color: theme.colors.danger,
     fontWeight: '700',
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   actionRow: {
     flexDirection: 'row',

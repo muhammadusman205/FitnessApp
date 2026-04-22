@@ -13,6 +13,7 @@ import EmptyState from '../components/EmptyState';
 import AppButton from '../components/AppButton';
 
 const FULL_BODY_ID = 'beginner-full-body';
+const MOVEMENT_NAME_REGEX = /^movement\s+\d+$/i;
 
 const mapSessionDifficulty = (label) => {
   const s = (label || '').toLowerCase();
@@ -171,16 +172,21 @@ const ProgramDetailScreen = ({ route, navigation }) => {
           keyExtractor={(item, index) => String(item.id ?? index)}
           contentContainerStyle={styles.list}
           ListFooterComponent={listFooter}
-          renderItem={({ item, index }) => (
-            <ExerciseCard
-              item={item}
-              index={index}
-              layout="list"
-              onPress={() => navigation.navigate('Exercises', { screen: 'ExerciseDetail', params: { exercise: item } })}
-              onFavorite={() => onToggleFavorite(item)}
-              isFavorite={favoriteIds.has(item.id)}
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const fallbackName = `${item.target || 'General'} ${item.bodyPart || 'exercise'}`;
+            const displayName = MOVEMENT_NAME_REGEX.test(item.name || '') ? fallbackName : item.name;
+            const mappedItem = { ...item, name: displayName };
+            return (
+              <ExerciseCard
+                item={mappedItem}
+                index={index}
+                layout="list"
+                onPress={() => navigation.navigate('Exercises', { screen: 'ExerciseDetail', params: { exercise: mappedItem } })}
+                onFavorite={() => onToggleFavorite(mappedItem)}
+                isFavorite={favoriteIds.has(mappedItem.id)}
+              />
+            );
+          }}
         />
       ) : (
         <View style={styles.emptyHost}>{renderEmpty()}</View>
