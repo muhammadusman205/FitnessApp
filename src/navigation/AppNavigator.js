@@ -14,6 +14,7 @@ import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import WorkoutPlannerScreen from '../screens/WorkoutPlannerScreen';
 import ProgressTrackingScreen from '../screens/ProgressTrackingScreen';
+import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
 import { useAuth } from '../context/AuthContext';
 
 const RootStack = createNativeStackNavigator();
@@ -146,7 +147,20 @@ const AppNavigator = () => {
         }}
       >
         {user ? (
-          <RootStack.Screen name="AppTabs" component={TabsNavigator} />
+          <>
+            <RootStack.Screen name="AppTabs" component={TabsNavigator} />
+            <RootStack.Screen
+              name="ActiveWorkout"
+              component={ActiveWorkoutScreen}
+              options={{
+                headerShown: true,
+                title: 'Active Workout',
+                headerStyle: { backgroundColor: theme.colors.secondaryBackground },
+                headerTintColor: theme.colors.primary,
+                headerTitleStyle: { fontWeight: '700', color: theme.colors.textPrimary },
+              }}
+            />
+          </>
         ) : (
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}

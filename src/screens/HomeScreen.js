@@ -26,6 +26,7 @@ import { useFadeIn } from '../hooks/useFadeIn';
 import { WORKOUT_PROGRAMS } from '../data/workoutPrograms';
 import EmptyState from '../components/EmptyState';
 import AppButton from '../components/AppButton';
+import { useWorkoutHistory } from '../context/WorkoutHistoryContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RECOMMENDED_CARD_W = Math.min(SCREEN_W * 0.78, 300);
@@ -33,12 +34,6 @@ const SNAP_PROGRAM = PROGRAM_CARD_WIDTH + 12;
 const SNAP_REC = RECOMMENDED_CARD_W + 12;
 
 const GOALS = ['general fitness', 'weight loss', 'muscle gain'];
-
-const CONTINUE_MOCK = {
-  title: 'Upper body · Week 2',
-  subtitle: '12 min left · 4 exercises',
-  programId: 'push-day',
-};
 
 const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -58,11 +53,23 @@ const HomeScreen = ({ navigation }) => {
     refreshUserData,
     refreshExercises,
   } = useFitness();
+  const { completedWorkouts } = useWorkoutHistory();
   const { showToast } = useToast();
+
+  const plannedWorkouts = useMemo(
+    () => workouts.filter((item) => (item.kind || 'plan') === 'plan'),
+    [workouts]
+  );
+
+  const lastSession = completedWorkouts[0] || null;
+  const resumeTitle = lastSession?.programTitle || `${lastSession?.programType || 'Session'} workout`;
+  const resumeSubtitle = lastSession
+    ? `${lastSession.exercises?.[0]?.name || 'Exercise'} · ${new Date(lastSession.date).toLocaleDateString()}`
+    : '';
 
   const stats = [
     { label: 'Favorites', value: favorites.length },
-    { label: 'Planned', value: workouts.length },
+    { label: 'Planned', value: plannedWorkouts.length },
     { label: 'Logs', value: progress.length },
   ];
 
@@ -164,25 +171,32 @@ const HomeScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
         <Card style={styles.hero}>
-          <Text style={styles.greeting}>Welcome back, {user?.email?.split('@')[0] || 'Athlete'} 👋</Text>
+          <Text style={styles.greeting}>Welcome back, {user?.email?.split('@')[0] || 'Athlete'}</Text>
           <Text style={styles.subtitle}>Train with purpose — pick a program or dive into moves.</Text>
-          <Pressable style={styles.logoutButton} onPress={onLogout} accessibilityRole="button" accessibilityLabel="Logout">
+          <Pressable
+            style={styles.logoutButton}
+            onPress={onLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
+            accessibilityHint="Signs out of your account and returns to the login screen."
+          >
             <Text style={styles.logout}>Logout</Text>
           </Pressable>
         </Card>
 
-          <Pressable
+        <Pressable
           onPress={() => navigation.navigate('ProgramDetail', { programId: WORKOUT_PROGRAMS[0].id })}
           style={styles.ctaWrap}
-            accessibilityRole="button"
-            accessibilityLabel="Start today's workout program"
+          accessibilityRole="button"
+          accessibilityLabel="Start today's workout program"
+          accessibilityHint="Opens the program details for today's recommended workout."
         >
-          <LinearGradient colors={['#4A90E2', '#2563EB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaGradient}>
+          <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaGradient}>
             <View style={styles.ctaTextWrap}>
               <Text style={styles.ctaTitle}>Start Workout</Text>
-              <Text style={styles.ctaSub}>Jump into today&apos;s session.</Text>
+              <Text style={styles.ctaSub}>Jump into today's session.</Text>
             </View>
-            <Ionicons name="play-circle" size={44} color="rgba(255,255,255,0.95)" />
+            <Ionicons name="play-circle" size={44} color={theme.colors.whiteTransparentStrong} />
           </LinearGradient>
         </Pressable>
 
@@ -198,6 +212,7 @@ const HomeScreen = ({ navigation }) => {
                 accessibilityRole="button"
                 accessibilityState={{ selected: goal === item }}
                 accessibilityLabel={`Set goal to ${item}`}
+                accessibilityHint="Updates your recommendation focus."
               >
                 <Text style={[styles.goalChipText, goal === item && styles.goalChipTextActive]}>{item}</Text>
               </Pressable>
@@ -267,29 +282,43 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Continue session</Text>
-          <Ionicons name="time-outline" size={18} color={theme.colors.primary} />
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={SCREEN_W * 0.88 + 12}
-          decelerationRate="fast"
-          contentContainerStyle={styles.horizontalListContent}
-        >
-          <Pressable
-            onPress={() => navigation.navigate('ProgramDetail', { programId: CONTINUE_MOCK.programId })}
-            style={[styles.continueCard, { width: SCREEN_W * 0.88 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Resume your latest workout session"
-          >
-            <LinearGradient colors={['#EEF3FB', '#DDEAFB']} style={StyleSheet.absoluteFill} />
-            <Text style={styles.continueTitle}>{CONTINUE_MOCK.title}</Text>
-            <Text style={styles.continueSub}>{CONTINUE_MOCK.subtitle}</Text>
-            <Text style={styles.continueLink}>Resume session →</Text>
-          </Pressable>
-        </ScrollView>
+        {lastSession ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Resume Session</Text>
+              <Ionicons name="time-outline" size={18} color={theme.colors.primary} />
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={SCREEN_W * 0.88 + 12}
+              decelerationRate="fast"
+              contentContainerStyle={styles.horizontalListContent}
+            >
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('ActiveWorkout', {
+                    programTitle: resumeTitle,
+                    programType: lastSession.programType || 'resume',
+                    difficulty: lastSession.difficulty || 'medium',
+                    exercises: lastSession.exercises || [],
+                    setsPerExercise: 4,
+                    repsPerSet: 12,
+                  })
+                }
+                style={[styles.continueCard, { width: SCREEN_W * 0.88 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Resume your latest workout session"
+                accessibilityHint="Opens the active workout screen using your most recent session."
+              >
+                <LinearGradient colors={[theme.colors.cardAlt, theme.colors.cardTintBlue]} style={StyleSheet.absoluteFill} />
+                <Text style={styles.continueTitle}>{resumeTitle}</Text>
+                <Text style={styles.continueSub}>{resumeSubtitle}</Text>
+                <Text style={styles.continueLink}>Resume session →</Text>
+              </Pressable>
+            </ScrollView>
+          </>
+        ) : null}
 
         <View style={styles.grid}>
           {stats.map((item) => (
@@ -315,7 +344,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg * 2,
   },
   hero: {
-    backgroundColor: '#DDEAFB',
+    backgroundColor: theme.colors.cardTintBlue,
     marginBottom: theme.spacing.md,
   },
   greeting: {
@@ -337,7 +366,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 10,
-    backgroundColor: '#EEF5FF',
+    backgroundColor: theme.colors.cardTintBlueLight,
   },
   ctaWrap: {
     marginBottom: theme.spacing.md,
@@ -359,12 +388,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   ctaSub: {
     marginTop: 4,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: theme.colors.whiteTransparentMid,
   },
   goalCard: {
     marginBottom: theme.spacing.md,
@@ -385,7 +414,7 @@ const styles = StyleSheet.create({
   goalChip: {
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#E8EEF7',
+    backgroundColor: theme.colors.chipBackground,
     paddingHorizontal: 12,
   },
   goalChipActive: {
@@ -397,7 +426,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   goalChipTextActive: {
-    color: '#F8FBFF',
+    color: theme.colors.chipActiveText,
   },
   sectionHeader: {
     marginBottom: theme.spacing.sm,
@@ -475,7 +504,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     marginTop: theme.spacing.sm,
-    backgroundColor: '#EEF5FF',
+    backgroundColor: theme.colors.cardTintBlueLight,
   },
   summaryTitle: {
     fontSize: 16,

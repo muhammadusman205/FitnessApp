@@ -2,7 +2,11 @@ import { StyleSheet, View } from 'react-native';
 import { theme } from '../utils/theme';
 
 const Card = ({ children, style }) => {
-  return <View style={[styles.card, style]}>{children}</View>;
+  return (
+    <View style={[styles.card, style]} accessibilityRole="summary">
+      {children}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({

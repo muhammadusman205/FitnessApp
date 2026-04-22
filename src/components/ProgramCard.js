@@ -32,16 +32,17 @@ const ProgramCard = ({ program, onPress, index = 0 }) => {
         style={styles.press}
         accessibilityRole="button"
         accessibilityLabel={`Open ${program.title} program`}
+        accessibilityHint="Opens the selected workout program details."
       >
         <View style={[styles.card, { shadowOpacity: 0.18, elevation: 6 }]}>
           <LinearGradient
-            colors={[tint, '#0F172A']}
+            colors={[tint, theme.colors.shadowDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.85)']}
+            colors={['transparent', theme.colors.overlayBlackHeavy]}
             style={styles.bottomFade}
           />
           <View style={styles.badgesRow}>
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     overflow: 'hidden',
     justifyContent: 'flex-end',
-    shadowColor: '#0F172A',
+    shadowColor: theme.colors.shadowDark,
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,
   },
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   timeBadge: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: theme.colors.whiteTransparentSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -107,17 +108,17 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   diffPill: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: theme.colors.whiteTransparentOverlay,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: theme.colors.whiteTransparentLight,
   },
   diffText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   textBlock: {
     padding: theme.spacing.md,
@@ -125,13 +126,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: theme.colors.white,
     letterSpacing: -0.3,
   },
   desc: {
     marginTop: 6,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.88)',
+    color: theme.colors.whiteTransparentMid,
     lineHeight: 18,
   },
 });

@@ -55,14 +55,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: theme.colors.inputBackground,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 12,
     color: theme.colors.textPrimary,
   },
   inputFocused: {
     borderColor: theme.colors.primary,
-    backgroundColor: '#F3F8FF',
+    backgroundColor: theme.colors.inputFocusedBackground,
   },
   inputError: {
     borderColor: theme.colors.danger,

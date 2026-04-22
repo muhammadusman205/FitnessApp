@@ -125,6 +125,8 @@ const ExerciseListScreen = ({ navigation }) => {
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
+            accessibilityLabel="Search exercises"
+            accessibilityHint="Type a keyword to filter the exercise list."
           />
         </View>
         <FlatList

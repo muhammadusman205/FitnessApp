@@ -2,7 +2,15 @@ import { ActivityIndicator, Animated, Pressable, StyleSheet, Text } from 'react-
 import { theme } from '../utils/theme';
 import { useScalePress } from '../hooks/useScalePress';
 
-const AppButton = ({ title, onPress, loading = false, variant = 'primary', disabled = false }) => {
+const AppButton = ({
+  title,
+  onPress,
+  loading = false,
+  variant = 'primary',
+  disabled = false,
+  accessibilityLabel,
+  accessibilityHint,
+}) => {
   const isSecondary = variant === 'secondary';
   const isDisabled = loading || disabled || typeof onPress !== 'function';
   const { animatedStyle, onPressIn, onPressOut } = useScalePress({ activeScale: 0.97, withHaptics: true });
@@ -19,6 +27,8 @@ const AppButton = ({ title, onPress, loading = false, variant = 'primary', disab
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel || title}
+        accessibilityHint={accessibilityHint}
         accessibilityState={{ disabled: isDisabled, busy: loading }}
       >
         {loading ? (

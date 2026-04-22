@@ -8,7 +8,7 @@ import { theme } from '../utils/theme';
 const PLACEHOLDER_IMAGE =
   'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=80';
 
-const ExerciseDetailScreen = ({ route }) => {
+const ExerciseDetailScreen = ({ route, navigation }) => {
   const exercise = route?.params?.exercise;
   const { favorites, toggleFavorite } = useFitness();
   const { showToast } = useToast();
@@ -33,6 +33,17 @@ const ExerciseDetailScreen = ({ route }) => {
     }
   };
 
+  const onQuickStart = () => {
+    navigation.navigate('ActiveWorkout', {
+      programTitle: `Quick Start: ${exercise.name}`,
+      programType: 'quick-start',
+      difficulty: 'medium',
+      exercises: [exercise],
+      setsPerExercise: 3,
+      repsPerSet: 12,
+    });
+  };
+
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
@@ -51,6 +62,13 @@ const ExerciseDetailScreen = ({ route }) => {
           <AppButton
             title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
             onPress={onToggleFavorite}
+            accessibilityHint="Adds or removes this exercise from favorites."
+          />
+          <AppButton
+            title="Quick Start"
+            variant="secondary"
+            onPress={onQuickStart}
+            accessibilityHint="Starts a 3-set quick workout for this exercise."
           />
         </View>
       </ScrollView>

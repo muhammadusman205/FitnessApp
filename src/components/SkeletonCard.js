@@ -46,7 +46,7 @@ const SkeletonCard = ({ variant = 'exercise', style }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#E7EEF7',
+    backgroundColor: theme.colors.skeletonBase,
     borderRadius: theme.radius.lg,
     overflow: 'hidden',
   },
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 12,
-    backgroundColor: '#DCE6F3',
+    backgroundColor: theme.colors.cardAlt,
     margin: 7,
   },
   exerciseContent: {
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   line: {
     height: 12,
     borderRadius: 7,
-    backgroundColor: '#D7E2F0',
+    backgroundColor: theme.colors.skeletonAccent,
     marginBottom: 10,
   },
   lineWide: {

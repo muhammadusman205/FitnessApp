@@ -50,6 +50,7 @@ const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout
               style={styles.imagePress}
               accessibilityRole="button"
               accessibilityLabel={`Open details for ${item.name}`}
+              accessibilityHint="Opens the exercise detail screen."
             >
               <Image
                 source={{ uri: imageSource, cache: 'force-cache' }}
@@ -64,11 +65,11 @@ const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout
               />
               {imageLoading ? (
                 <View style={[styles.skeleton, { height: imageH }]}>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={theme.colors.white} />
                 </View>
               ) : null}
               <LinearGradient
-                colors={['transparent', 'rgba(15,23,42,0.15)', 'rgba(15,23,42,0.92)']}
+                colors={['transparent', theme.colors.overlayDarkMid, theme.colors.overlayDarkHeavy]}
                 locations={[0, 0.45, 1]}
                 style={styles.imageGradient}
               />
@@ -96,8 +97,9 @@ const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${item.name} ${isFavorite ? 'from' : 'to'} favorites`}
+              accessibilityHint="Toggles this exercise in your favorites list."
             >
-              <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color="#FFFFFF" />
+              <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={theme.colors.white} />
             </Pressable>
           </View>
         </View>
@@ -112,7 +114,7 @@ const styles = StyleSheet.create({
   },
   cardShadow: {
     borderRadius: theme.radius.lg,
-    shadowColor: '#0F172A',
+    shadowColor: theme.colors.shadowDark,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -140,13 +142,13 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.imageFallbackDark,
   },
   skeleton: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: theme.colors.imageLoadingOverlay,
   },
   imageGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(15,23,42,0.45)',
+    backgroundColor: theme.colors.overlayDarkSoft,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
@@ -177,18 +179,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: theme.colors.whiteTransparentOverlay,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: theme.colors.whiteTransparentLight,
   },
   chipAlt: {
-    backgroundColor: 'rgba(74,144,226,0.35)',
-    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: theme.colors.whiteTransparentOverlay,
+    borderColor: theme.colors.whiteTransparentLightest,
   },
   chipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.white,
     textTransform: 'capitalize',
   },
   titleBlock: {
@@ -203,9 +205,9 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: theme.colors.white,
     letterSpacing: -0.2,
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowColor: theme.colors.overlayBlackMedium,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },

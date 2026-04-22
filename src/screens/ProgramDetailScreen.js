@@ -66,11 +66,23 @@ const ProgramDetailScreen = ({ route, navigation }) => {
         exercises: resolved.map(({ id, name, target, bodyPart }) => ({ id, name, target, bodyPart })),
         difficulty: mapSessionDifficulty(program.difficulty),
       });
-      showToast('Great work 🔥');
+      showToast('Workout completed successfully.');
     } catch (error) {
       showToast('Could not save workout completion.', 'error');
     }
   }, [program, resolved, addWorkoutSession, showToast]);
+
+  const onStartWorkout = useCallback(() => {
+    if (!resolved.length) return;
+    navigation.navigate('ActiveWorkout', {
+      programTitle: program?.title || 'Workout Session',
+      programType: program?.type || 'general',
+      difficulty: mapSessionDifficulty(program?.difficulty),
+      exercises: resolved,
+      setsPerExercise: 4,
+      repsPerSet: 12,
+    });
+  }, [navigation, program?.difficulty, program?.title, program?.type, resolved]);
 
   const renderEmpty = useCallback(() => {
     if (loadingExercises) {
@@ -98,9 +110,10 @@ const ProgramDetailScreen = ({ route, navigation }) => {
         <Pressable
           onPress={onTryFullBody}
           style={styles.fallbackBtn}
-          android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+          android_ripple={{ color: theme.colors.overlayBlackSoft }}
           accessibilityRole="button"
           accessibilityLabel="Try full body workout program"
+          accessibilityHint="Switches to a full body program with broader exercise coverage."
         >
           <Text style={styles.fallbackBtnText}>Try Full Body Program</Text>
         </Pressable>
@@ -126,9 +139,10 @@ const ProgramDetailScreen = ({ route, navigation }) => {
       <Pressable
         onPress={onCompleteWorkout}
         style={styles.completeBtn}
-        android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+        android_ripple={{ color: theme.colors.overlayBlackSoft }}
         accessibilityRole="button"
         accessibilityLabel="Mark workout as complete"
+        accessibilityHint="Marks the current workout plan as completed."
       >
         <Text style={styles.completeBtnText}>Complete Workout</Text>
       </Pressable>
@@ -143,6 +157,13 @@ const ProgramDetailScreen = ({ route, navigation }) => {
           {showList ? ` · ${resolved.length} moves` : ''}
         </Text>
         <Text style={styles.desc}>{program.description}</Text>
+        {showList ? (
+          <AppButton
+            title="Start Workout"
+            onPress={onStartWorkout}
+            accessibilityHint="Starts a guided workout session for this program."
+          />
+        ) : null}
       </View>
       {showList ? (
         <FlatList
@@ -207,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   completeBtnText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontWeight: '800',
     fontSize: 16,
   },
@@ -245,7 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   fallbackBtnText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontWeight: '800',
     fontSize: 15,
   },

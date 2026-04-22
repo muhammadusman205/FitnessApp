@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Dimensions, FlatList, StyleSheet, Text, View } from 'react-native';
+import { Alert, Dimensions, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import ScreenContainer from '../components/ScreenContainer';
 import InputField from '../components/InputField';
@@ -12,7 +12,7 @@ import LoadingState from '../components/LoadingState';
 import { useToast } from '../context/ToastContext';
 
 const ProgressTrackingScreen = () => {
-  const { progress, addProgressEntry, loadingUserData, userDataError, refreshUserData } = useFitness();
+  const { progress, addProgressEntry, deleteProgressEntry, loadingUserData, userDataError, refreshUserData } = useFitness();
   const { showToast } = useToast();
   const [weight, setWeight] = useState('');
   const [completedWorkouts, setCompletedWorkouts] = useState('');
@@ -47,6 +47,24 @@ const ProgressTrackingScreen = () => {
     }
   };
 
+  const onDeleteEntry = (item) => {
+    Alert.alert('Delete Entry?', 'This progress entry will be removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteProgressEntry(item.docId);
+            showToast('Progress entry deleted.');
+          } catch (error) {
+            showToast('Could not delete progress entry.', 'error');
+          }
+        },
+      },
+    ]);
+  };
+
   const chartData = useMemo(() => {
     const recent = [...progress].slice(-6);
     return {
@@ -64,7 +82,7 @@ const ProgressTrackingScreen = () => {
     if (progress.length < 2) return 'Keep logging to unlock progress insights.';
     const latest = Number(progress[progress.length - 1]?.weight || 0);
     const previous = Number(progress[progress.length - 2]?.weight || 0);
-    if (latest <= previous) return 'Progress improving 📈 Great consistency this week.';
+    if (latest <= previous) return 'Progress is improving. Great consistency this week.';
     return 'You are actively tracking. Stay steady and keep improving.';
   }, [progress]);
 
@@ -105,21 +123,23 @@ const ProgressTrackingScreen = () => {
             height={220}
             yAxisSuffix="kg"
             chartConfig={{
-              backgroundGradientFrom: '#F3F7FF',
-              backgroundGradientTo: '#F3F7FF',
+              backgroundGradientFrom: theme.colors.progressChartBackground,
+              backgroundGradientTo: theme.colors.progressChartBackground,
               decimalPlaces: 1,
               color: () => theme.colors.primary,
               labelColor: () => theme.colors.textSecondary,
-              propsForBackgroundLines: { stroke: '#DBE5F2', strokeDasharray: '' },
+              propsForBackgroundLines: { stroke: theme.colors.border, strokeDasharray: '' },
               propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primary },
             }}
             bezier
             style={styles.chart}
+            accessibilityLabel="Weight trend chart"
+            accessibilityHint="Shows your recent weight trend over time."
           />
         ) : (
           <EmptyState
             icon="stats-chart-outline"
-            title="No progress yet 📊"
+            title="No progress yet"
             subtitle="Log your first entry to visualize your journey."
           />
         )}
@@ -138,6 +158,14 @@ const ProgressTrackingScreen = () => {
               <Text style={styles.itemText}>
                 {item.date}: {item.weight}kg, workouts: {item.completedWorkouts}
               </Text>
+              <Pressable
+                onPress={() => onDeleteEntry(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete progress entry for ${item.date}`}
+                accessibilityHint="Removes this progress log entry."
+              >
+                <Text style={styles.deleteAction}>Delete</Text>
+              </Pressable>
             </Card>
           )}
         />
@@ -179,7 +207,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     marginBottom: theme.spacing.sm,
-    backgroundColor: '#EDF6FF',
+    backgroundColor: theme.colors.cardTintBlueSoft,
   },
   summaryTitle: {
     fontSize: 16,
@@ -192,6 +220,11 @@ const styles = StyleSheet.create({
   },
   errorWrap: {
     marginBottom: theme.spacing.sm,
+  },
+  deleteAction: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.danger,
+    fontWeight: '700',
   },
 });
 
