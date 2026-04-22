@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState';
 import { useToast } from '../context/ToastContext';
 import SkeletonCard from '../components/SkeletonCard';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import AppButton from '../components/AppButton';
 
 const ExerciseListScreen = ({ navigation }) => {
   const {
@@ -18,9 +19,11 @@ const ExerciseListScreen = ({ navigation }) => {
     loadingExercises,
     isLoadingMore,
     hasMore,
+    exercisesError,
     bodyPartFilter,
     setBodyPartFilter,
     loadMoreExercises,
+    refreshExercises,
     goal,
     toggleFavorite,
   } = useFitness();
@@ -102,6 +105,16 @@ const ExerciseListScreen = ({ navigation }) => {
   return (
     <ScreenContainer>
       <View style={styles.container}>
+        {exercisesError ? (
+          <View style={styles.errorWrap}>
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Could not load exercises"
+              subtitle={exercisesError}
+            />
+            <AppButton title="Try Again" variant="secondary" onPress={refreshExercises} />
+          </View>
+        ) : null}
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={18} color={theme.colors.textSecondary} />
           <TextInput
@@ -123,7 +136,7 @@ const ExerciseListScreen = ({ navigation }) => {
           initialNumToRender={12}
           renderItem={renderFilterChip}
         />
-        <Text style={styles.recoLabel}>Goal mode: {goal}</Text>
+        <Text style={styles.recoLabel}>Goal Focus: {goal}</Text>
         <FlatList
           data={filteredExercises}
           keyExtractor={(item, index) => (item.id != null ? String(item.id) : `ex-${index}`)}
@@ -208,6 +221,10 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
+  },
+  errorWrap: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
   },
 });
 

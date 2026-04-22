@@ -25,7 +25,14 @@ const ProgramCard = ({ program, onPress, index = 0 }) => {
 
   return (
     <Animated.View style={[styles.wrap, { width: PROGRAM_CARD_WIDTH, opacity: fadeIn }, animatedStyle]}>
-      <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={styles.press}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={styles.press}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${program.title} program`}
+      >
         <View style={[styles.card, { shadowOpacity: 0.18, elevation: 6 }]}>
           <LinearGradient
             colors={[tint, '#0F172A']}

@@ -11,7 +11,7 @@ import LoadingState from '../components/LoadingState';
 import { useToast } from '../context/ToastContext';
 
 const WorkoutPlannerScreen = () => {
-  const { workouts, addWorkout, loadingUserData } = useFitness();
+  const { workouts, addWorkout, loadingUserData, userDataError, refreshUserData } = useFitness();
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [day, setDay] = useState('');
@@ -43,10 +43,16 @@ const WorkoutPlannerScreen = () => {
           <AppButton title="Save Workout" onPress={onAddWorkout} />
         </Card>
         <Text style={styles.listTitle}>Your Plans</Text>
+        {userDataError ? (
+          <View style={styles.errorWrap}>
+            <EmptyState icon="cloud-offline-outline" title="Could not load plans" subtitle={userDataError} />
+            <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
+          </View>
+        ) : null}
         {loadingUserData ? <LoadingState label="Loading workouts..." /> : null}
         <FlatList
           data={workouts}
-          keyExtractor={(item) => item.docId}
+          keyExtractor={(item, index) => item.docId || `workout-${index}`}
           initialNumToRender={8}
           renderItem={({ item }) => (
             <Card style={styles.item}>
@@ -97,6 +103,9 @@ const styles = StyleSheet.create({
   itemSubtitle: {
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  errorWrap: {
+    marginBottom: theme.spacing.sm,
   },
 });
 

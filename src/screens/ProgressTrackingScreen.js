@@ -12,7 +12,7 @@ import LoadingState from '../components/LoadingState';
 import { useToast } from '../context/ToastContext';
 
 const ProgressTrackingScreen = () => {
-  const { progress, addProgressEntry, loadingUserData } = useFitness();
+  const { progress, addProgressEntry, loadingUserData, userDataError, refreshUserData } = useFitness();
   const { showToast } = useToast();
   const [weight, setWeight] = useState('');
   const [completedWorkouts, setCompletedWorkouts] = useState('');
@@ -90,6 +90,12 @@ const ProgressTrackingScreen = () => {
           <AppButton title="Save Progress" onPress={onSave} />
         </Card>
 
+        {userDataError ? (
+          <View style={styles.errorWrap}>
+            <EmptyState icon="cloud-offline-outline" title="Could not load progress" subtitle={userDataError} />
+            <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
+          </View>
+        ) : null}
         {loadingUserData ? <LoadingState label="Loading progress history..." /> : null}
         <Text style={styles.sectionTitle}>Weight Trend</Text>
         {chartData.labels.length > 0 ? (
@@ -125,7 +131,7 @@ const ProgressTrackingScreen = () => {
 
         <FlatList
           data={progress}
-          keyExtractor={(item) => item.docId}
+          keyExtractor={(item, index) => item.docId || `progress-${index}`}
           initialNumToRender={8}
           renderItem={({ item }) => (
             <Card style={styles.item}>
@@ -183,6 +189,9 @@ const styles = StyleSheet.create({
   summaryText: {
     marginTop: 6,
     color: theme.colors.textSecondary,
+  },
+  errorWrap: {
+    marginBottom: theme.spacing.sm,
   },
 });
 

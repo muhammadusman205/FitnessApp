@@ -2,6 +2,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import ScreenContainer from '../components/ScreenContainer';
 import AppButton from '../components/AppButton';
 import { useFitness } from '../context/FitnessContext';
+import { useToast } from '../context/ToastContext';
 import { theme } from '../utils/theme';
 
 const PLACEHOLDER_IMAGE =
@@ -10,6 +11,7 @@ const PLACEHOLDER_IMAGE =
 const ExerciseDetailScreen = ({ route }) => {
   const exercise = route?.params?.exercise;
   const { favorites, toggleFavorite } = useFitness();
+  const { showToast } = useToast();
   if (!exercise) {
     return (
       <ScreenContainer>
@@ -21,6 +23,16 @@ const ExerciseDetailScreen = ({ route }) => {
   }
   const isFavorite = favorites.some((item) => item.id === exercise.id);
 
+  const onToggleFavorite = async () => {
+    try {
+      await toggleFavorite(exercise);
+      const saved = !isFavorite;
+      showToast(saved ? 'Exercise saved to favorites.' : 'Exercise removed from favorites.');
+    } catch (error) {
+      showToast('Unable to update favorites right now.', 'error');
+    }
+  };
+
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
@@ -31,14 +43,14 @@ const ExerciseDetailScreen = ({ route }) => {
           <Text style={styles.meta}>Equipment: {exercise.equipment || 'N/A'}</Text>
           <Text style={styles.meta}>Body Part: {exercise.bodyPart || 'N/A'}</Text>
           <Text style={styles.sectionTitle}>How to perform</Text>
-          {(exercise.instructions || ['Perform with controlled form and breathing.']).map((step) => (
-            <Text style={styles.step} key={step}>
+          {(exercise.instructions || ['Perform with controlled form and breathing.']).map((step, index) => (
+            <Text style={styles.step} key={`${exercise.id || 'exercise'}-${index}`}>
               - {step}
             </Text>
           ))}
           <AppButton
             title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-            onPress={() => toggleFavorite(exercise)}
+            onPress={onToggleFavorite}
           />
         </View>
       </ScrollView>

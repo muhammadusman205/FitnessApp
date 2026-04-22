@@ -9,6 +9,8 @@ import { getExercisesForProgram } from '../utils/exerciseMatcher';
 import { buildHistorySnapshot } from '../utils/workoutProgression';
 import { theme } from '../utils/theme';
 import { useToast } from '../context/ToastContext';
+import EmptyState from '../components/EmptyState';
+import AppButton from '../components/AppButton';
 
 const FULL_BODY_ID = 'beginner-full-body';
 
@@ -22,7 +24,7 @@ const mapSessionDifficulty = (label) => {
 const ProgramDetailScreen = ({ route, navigation }) => {
   const { programId } = route.params || {};
   const program = getProgramById(programId);
-  const { exercises, favorites, toggleFavorite, loadingExercises, goal } = useFitness();
+  const { exercises, favorites, toggleFavorite, loadingExercises, goal, exercisesError, refreshExercises } = useFitness();
   const { completedWorkouts, addWorkoutSession } = useWorkoutHistory();
   const { showToast } = useToast();
 
@@ -57,13 +59,17 @@ const ProgramDetailScreen = ({ route, navigation }) => {
 
   const onCompleteWorkout = useCallback(async () => {
     if (!program || !resolved.length) return;
-    await addWorkoutSession({
-      programType: program.type,
-      date: Date.now(),
-      exercises: resolved.map(({ id, name, target, bodyPart }) => ({ id, name, target, bodyPart })),
-      difficulty: mapSessionDifficulty(program.difficulty),
-    });
-    showToast('Great work 🔥');
+    try {
+      await addWorkoutSession({
+        programType: program.type,
+        date: Date.now(),
+        exercises: resolved.map(({ id, name, target, bodyPart }) => ({ id, name, target, bodyPart })),
+        difficulty: mapSessionDifficulty(program.difficulty),
+      });
+      showToast('Great work 🔥');
+    } catch (error) {
+      showToast('Could not save workout completion.', 'error');
+    }
   }, [program, resolved, addWorkoutSession, showToast]);
 
   const renderEmpty = useCallback(() => {
@@ -78,14 +84,29 @@ const ProgramDetailScreen = ({ route, navigation }) => {
     }
     return (
       <View style={styles.emptyWrap}>
-        <Text style={styles.emptyTitle}>Loading your training plan…</Text>
-        <Text style={styles.emptySub}>We will load exercises as soon as your library syncs. Try a full-body session in the meantime.</Text>
-        <Pressable onPress={onTryFullBody} style={styles.fallbackBtn} android_ripple={{ color: 'rgba(0,0,0,0.08)' }}>
+        {exercisesError ? (
+          <>
+            <EmptyState icon="alert-circle-outline" title="Could not load program exercises" subtitle={exercisesError} />
+            <AppButton title="Retry Exercises" variant="secondary" onPress={refreshExercises} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyTitle}>Loading your training plan…</Text>
+            <Text style={styles.emptySub}>We will load exercises as soon as your library syncs. Try a full-body session in the meantime.</Text>
+          </>
+        )}
+        <Pressable
+          onPress={onTryFullBody}
+          style={styles.fallbackBtn}
+          android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+          accessibilityRole="button"
+          accessibilityLabel="Try full body workout program"
+        >
           <Text style={styles.fallbackBtnText}>Try Full Body Program</Text>
         </Pressable>
       </View>
     );
-  }, [loadingExercises, onTryFullBody]);
+  }, [loadingExercises, onTryFullBody, exercisesError, refreshExercises]);
 
   if (!program) {
     return (
@@ -102,7 +123,13 @@ const ProgramDetailScreen = ({ route, navigation }) => {
   const listFooter = useCallback(() => {
     if (!showList) return null;
     return (
-      <Pressable onPress={onCompleteWorkout} style={styles.completeBtn} android_ripple={{ color: 'rgba(0,0,0,0.08)' }}>
+      <Pressable
+        onPress={onCompleteWorkout}
+        style={styles.completeBtn}
+        android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+        accessibilityRole="button"
+        accessibilityLabel="Mark workout as complete"
+      >
         <Text style={styles.completeBtnText}>Complete Workout</Text>
       </Pressable>
     );

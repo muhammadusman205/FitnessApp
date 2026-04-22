@@ -7,9 +7,10 @@ import { theme } from '../utils/theme';
 import EmptyState from '../components/EmptyState';
 import { useToast } from '../context/ToastContext';
 import SkeletonCard from '../components/SkeletonCard';
+import AppButton from '../components/AppButton';
 
 const FavoritesScreen = ({ navigation }) => {
-  const { favorites, toggleFavorite, loadingUserData } = useFitness();
+  const { favorites, toggleFavorite, loadingUserData, userDataError, refreshUserData } = useFitness();
   const { showToast } = useToast();
 
   const onRemoveFavorite = useCallback(
@@ -40,6 +41,12 @@ const FavoritesScreen = ({ navigation }) => {
   return (
     <ScreenContainer>
       <View style={styles.container}>
+        {userDataError ? (
+          <View style={styles.errorWrap}>
+            <EmptyState icon="cloud-offline-outline" title="Could not load favorites" subtitle={userDataError} />
+            <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
+          </View>
+        ) : null}
         {loadingUserData && !favorites.length ? (
           <View style={styles.skeletonWrap}>
             {[0, 1, 2].map((key) => (
@@ -74,6 +81,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   skeletonWrap: {
+    marginBottom: theme.spacing.sm,
+  },
+  errorWrap: {
     marginBottom: theme.spacing.sm,
   },
 });

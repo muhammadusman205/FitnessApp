@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../utils/theme';
 
@@ -8,18 +8,36 @@ export const ToastProvider = ({ children }) => {
   const [message, setMessage] = useState(null);
   const [type, setType] = useState('success');
   const [opacity] = useState(new Animated.Value(0));
+  const animationRef = useRef(null);
+  const toastIdRef = useRef(0);
 
   const showToast = (nextMessage, nextType = 'success') => {
+    toastIdRef.current += 1;
+    const toastId = toastIdRef.current;
     setMessage(nextMessage);
     setType(nextType);
-    Animated.sequence([
+    opacity.stopAnimation();
+    animationRef.current?.stop();
+    opacity.setValue(0);
+    const sequence = Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.delay(1800),
       Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => {
-      setMessage(null);
+    ]);
+    animationRef.current = sequence;
+    sequence.start(() => {
+      if (toastIdRef.current === toastId) {
+        setMessage(null);
+      }
     });
   };
+
+  useEffect(() => {
+    return () => {
+      animationRef.current?.stop();
+      opacity.stopAnimation();
+    };
+  }, [opacity]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>

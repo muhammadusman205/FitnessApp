@@ -24,6 +24,8 @@ import SkeletonCard from '../components/SkeletonCard';
 import ProgramCard, { PROGRAM_CARD_WIDTH } from '../components/ProgramCard';
 import { useFadeIn } from '../hooks/useFadeIn';
 import { WORKOUT_PROGRAMS } from '../data/workoutPrograms';
+import EmptyState from '../components/EmptyState';
+import AppButton from '../components/AppButton';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RECOMMENDED_CARD_W = Math.min(SCREEN_W * 0.78, 300);
@@ -47,10 +49,14 @@ const HomeScreen = ({ navigation }) => {
     goal,
     updateGoal,
     loadingUserData,
+    userDataError,
     loadingExercises,
+    exercisesError,
     recommendedExercises,
     toggleFavorite,
     exercises,
+    refreshUserData,
+    refreshExercises,
   } = useFitness();
   const { showToast } = useToast();
 
@@ -69,11 +75,32 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const onLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      showToast('Could not log out right now.', 'error');
+    }
+  };
+
   const weeklyWorkouts = progress.slice(-7).reduce((sum, item) => sum + (Number(item.completedWorkouts) || 0), 0);
   const consistency = `${Math.min(progress.slice(-7).length, 7)}/7 days`;
   const topRecommendations = recommendedExercises.slice(0, 12);
   const favoriteIds = useMemo(() => new Set(favorites.map((item) => item.id)), [favorites]);
   const sectionFade = useFadeIn(0, 80);
+
+  const onToggleFavorite = useCallback(
+    async (item) => {
+      try {
+        await toggleFavorite(item);
+        const saved = !favoriteIds.has(item.id);
+        showToast(saved ? 'Exercise saved to favorites.' : 'Exercise removed from favorites.');
+      } catch (error) {
+        showToast('Unable to update favorites right now.', 'error');
+      }
+    },
+    [favoriteIds, showToast, toggleFavorite]
+  );
 
   useEffect(() => {
     const urls = topRecommendations
@@ -105,12 +132,12 @@ const HomeScreen = ({ navigation }) => {
           layout="carousel"
           cardWidth={RECOMMENDED_CARD_W}
           onPress={() => navigation.navigate('Exercises', { screen: 'ExerciseDetail', params: { exercise: item } })}
-          onFavorite={() => toggleFavorite(item)}
+          onFavorite={() => onToggleFavorite(item)}
           isFavorite={favoriteIds.has(item.id)}
         />
       </View>
     ),
-    [favoriteIds, navigation, toggleFavorite]
+    [favoriteIds, navigation, onToggleFavorite]
   );
 
   const renderProgramSkeletons = () => (
@@ -139,19 +166,21 @@ const HomeScreen = ({ navigation }) => {
         <Card style={styles.hero}>
           <Text style={styles.greeting}>Welcome back, {user?.email?.split('@')[0] || 'Athlete'} 👋</Text>
           <Text style={styles.subtitle}>Train with purpose — pick a program or dive into moves.</Text>
-          <Pressable style={styles.logoutButton} onPress={logout} accessibilityRole="button" accessibilityLabel="Logout">
+          <Pressable style={styles.logoutButton} onPress={onLogout} accessibilityRole="button" accessibilityLabel="Logout">
             <Text style={styles.logout}>Logout</Text>
           </Pressable>
         </Card>
 
-        <Pressable
+          <Pressable
           onPress={() => navigation.navigate('ProgramDetail', { programId: WORKOUT_PROGRAMS[0].id })}
           style={styles.ctaWrap}
+            accessibilityRole="button"
+            accessibilityLabel="Start today's workout program"
         >
           <LinearGradient colors={['#4A90E2', '#2563EB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaGradient}>
             <View style={styles.ctaTextWrap}>
-              <Text style={styles.ctaTitle}>Start workout</Text>
-              <Text style={styles.ctaSub}>{`Jump into today's session`}</Text>
+              <Text style={styles.ctaTitle}>Start Workout</Text>
+              <Text style={styles.ctaSub}>Jump into today&apos;s session.</Text>
             </View>
             <Ionicons name="play-circle" size={44} color="rgba(255,255,255,0.95)" />
           </LinearGradient>
@@ -166,12 +195,22 @@ const HomeScreen = ({ navigation }) => {
                 key={item}
                 onPress={() => onGoalSelect(item)}
                 style={[styles.goalChip, goal === item && styles.goalChipActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: goal === item }}
+                accessibilityLabel={`Set goal to ${item}`}
               >
                 <Text style={[styles.goalChipText, goal === item && styles.goalChipTextActive]}>{item}</Text>
               </Pressable>
             ))}
           </View>
         </Card>
+
+        {userDataError ? (
+          <Card style={styles.errorCard}>
+            <EmptyState icon="cloud-offline-outline" title="Sync issue" subtitle={userDataError} />
+            <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
+          </Card>
+        ) : null}
 
         {loadingUserData ? <LoadingState label="Syncing your data..." /> : null}
 
@@ -181,6 +220,12 @@ const HomeScreen = ({ navigation }) => {
             <Ionicons name="albums-outline" size={18} color={theme.colors.primary} />
           </View>
         </Animated.View>
+        {exercisesError ? (
+          <Card style={styles.errorCard}>
+            <EmptyState icon="barbell-outline" title="Exercise feed unavailable" subtitle={exercisesError} />
+            <AppButton title="Retry Exercises" variant="secondary" onPress={refreshExercises} />
+          </Card>
+        ) : null}
         {loadingExercises && !exercises.length ? (
           renderProgramSkeletons()
         ) : (
@@ -217,7 +262,7 @@ const HomeScreen = ({ navigation }) => {
               decelerationRate="fast"
               contentContainerStyle={styles.horizontalListContent}
               renderItem={renderRecommendation}
-              ListEmptyComponent={<Text style={styles.emptyHint}>Open Exercises to load your library.</Text>}
+              ListEmptyComponent={<Text style={styles.emptyHint}>Open Exercises to load your exercise library.</Text>}
             />
           </View>
         )}
@@ -236,11 +281,13 @@ const HomeScreen = ({ navigation }) => {
           <Pressable
             onPress={() => navigation.navigate('ProgramDetail', { programId: CONTINUE_MOCK.programId })}
             style={[styles.continueCard, { width: SCREEN_W * 0.88 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Resume your latest workout session"
           >
             <LinearGradient colors={['#EEF3FB', '#DDEAFB']} style={StyleSheet.absoluteFill} />
             <Text style={styles.continueTitle}>{CONTINUE_MOCK.title}</Text>
             <Text style={styles.continueSub}>{CONTINUE_MOCK.subtitle}</Text>
-            <Text style={styles.continueLink}>Resume →</Text>
+            <Text style={styles.continueLink}>Resume session →</Text>
           </Pressable>
         </ScrollView>
 
@@ -438,6 +485,9 @@ const styles = StyleSheet.create({
   summaryText: {
     marginTop: 6,
     color: theme.colors.textSecondary,
+  },
+  errorCard: {
+    marginBottom: theme.spacing.md,
   },
 });
 

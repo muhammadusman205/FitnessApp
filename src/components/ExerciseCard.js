@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -33,12 +33,24 @@ const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout
   const muscle = (item.target || 'full body').toString();
   const equip = (item.equipment || 'body weight').toString();
 
+  useEffect(() => {
+    setImageSource(item.gifUrl || PLACEHOLDER_IMAGE);
+    setImageLoading(true);
+  }, [item.id, item.gifUrl]);
+
   return (
     <Animated.View style={[widthStyle, styles.outer, { opacity: fadeAnim }, animatedStyle]}>
       <View style={[styles.cardShadow, isCarousel && styles.cardShadowCarousel]}>
         <View style={styles.card}>
           <View style={[styles.imageWrap, { height: imageH }]}>
-            <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={styles.imagePress}>
+            <Pressable
+              onPress={onPress}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              style={styles.imagePress}
+              accessibilityRole="button"
+              accessibilityLabel={`Open details for ${item.name}`}
+            >
               <Image
                 source={{ uri: imageSource, cache: 'force-cache' }}
                 style={[styles.image, { height: imageH }]}
@@ -78,7 +90,13 @@ const ExerciseCard = ({ item, onPress, onFavorite, isFavorite, index = 0, layout
                 </Text>
               </View>
             </Pressable>
-            <Pressable style={styles.favBtn} onPress={onFavorite} hitSlop={8}>
+            <Pressable
+              style={styles.favBtn}
+              onPress={onFavorite}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${item.name} ${isFavorite ? 'from' : 'to'} favorites`}
+            >
               <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color="#FFFFFF" />
             </Pressable>
           </View>

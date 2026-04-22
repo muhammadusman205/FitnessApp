@@ -19,6 +19,7 @@ export const FitnessProvider = ({ children }) => {
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [exercisesError, setExercisesError] = useState(null);
   const [bodyPartFilter, setBodyPartFilter] = useState('all');
   const nextPageRef = useRef(0);
   const loadMoreLockRef = useRef(false);
@@ -28,26 +29,40 @@ export const FitnessProvider = ({ children }) => {
   const [progress, setProgress] = useState([]);
   const [goal, setGoal] = useState('general fitness');
   const [loadingUserData, setLoadingUserData] = useState(false);
+  const [userDataError, setUserDataError] = useState(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadInitialExercises = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoadingExercises(true);
     setHasMore(true);
+    setExercisesError(null);
     nextPageRef.current = 0;
     loadMoreLockRef.current = false;
 
     try {
       if (bodyPartFilter !== 'all') {
         const list = await fetchExercisesByBodyPart(bodyPartFilter);
+        if (!mountedRef.current) return;
         setExercises(list);
         setHasMore(false);
+        setExercisesError(null);
         return;
       }
 
       const cached = await getCachedExercises();
       if (cached?.items?.length) {
+        if (!mountedRef.current) return;
         setExercises(cached.items);
         nextPageRef.current = 1;
         setHasMore(cached.items.length >= PAGE_SIZE);
+        setExercisesError(null);
         return;
       }
 
@@ -55,11 +70,21 @@ export const FitnessProvider = ({ children }) => {
       if (firstPage.length) {
         await setCachedExercises(firstPage);
       }
+      if (!mountedRef.current) return;
       setExercises(firstPage);
       nextPageRef.current = 1;
       setHasMore(firstPage.length >= PAGE_SIZE);
+      setExercisesError(null);
+    } catch (error) {
+      console.warn('[FitnessContext] Failed to load exercises:', error?.message);
+      if (!mountedRef.current) return;
+      setExercises([]);
+      setHasMore(false);
+      setExercisesError('Could not load exercises right now. Please try again.');
     } finally {
-      setLoadingExercises(false);
+      if (mountedRef.current) {
+        setLoadingExercises(false);
+      }
     }
   }, [bodyPartFilter]);
 
@@ -103,13 +128,17 @@ export const FitnessProvider = ({ children }) => {
   }, [bodyPartFilter, hasMore, isLoadingMore, loadingExercises]);
 
   const loadUserData = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoadingUserData(true);
+    setUserDataError(null);
     try {
       if (!user) {
+        if (!mountedRef.current) return;
         setFavorites([]);
         setWorkouts([]);
         setProgress([]);
         setGoal('general fitness');
+        setUserDataError(null);
         return;
       }
 
@@ -120,12 +149,23 @@ export const FitnessProvider = ({ children }) => {
         getDoc(doc(db, 'users', user.uid)),
       ]);
 
+      if (!mountedRef.current) return;
       setFavorites(favoritesSnap.docs.map((item) => ({ docId: item.id, ...item.data() })));
       setWorkouts(workoutsSnap.docs.map((item) => ({ docId: item.id, ...item.data() })));
       setProgress(progressSnap.docs.map((item) => ({ docId: item.id, ...item.data() })));
       setGoal(profileSnap.exists() ? profileSnap.data().goal || 'general fitness' : 'general fitness');
+      setUserDataError(null);
+    } catch (error) {
+      console.warn('[FitnessContext] Failed to load user data:', error?.message);
+      if (!mountedRef.current) return;
+      setFavorites([]);
+      setWorkouts([]);
+      setProgress([]);
+      setUserDataError('Could not sync your account data. Please try again.');
     } finally {
-      setLoadingUserData(false);
+      if (mountedRef.current) {
+        setLoadingUserData(false);
+      }
     }
   }, [user]);
 
@@ -213,10 +253,14 @@ export const FitnessProvider = ({ children }) => {
       loadingExercises,
       isLoadingMore,
       hasMore,
+      exercisesError,
       bodyPartFilter,
       setBodyPartFilter,
       loadMoreExercises,
+      refreshExercises: loadInitialExercises,
       loadingUserData,
+      userDataError,
+      refreshUserData: loadUserData,
       favorites,
       workouts,
       progress,
@@ -232,9 +276,13 @@ export const FitnessProvider = ({ children }) => {
       loadingExercises,
       isLoadingMore,
       hasMore,
+      exercisesError,
       bodyPartFilter,
       loadMoreExercises,
+      loadInitialExercises,
       loadingUserData,
+      userDataError,
+      loadUserData,
       favorites,
       workouts,
       progress,
