@@ -122,24 +122,28 @@ const ActiveWorkoutScreen = ({ navigation, route }) => {
     ]);
   };
 
-  const onFinishWorkout = async () => {
+  const onFinishWorkout = () => {
     if (!hasExercises || saving) return;
     setSaving(true);
-    try {
-      const completedExerciseCount = completedSetsByExercise.filter((count) => count > 0).length;
-      const session = {
-        programType,
-        programTitle,
-        difficulty,
-        date: Date.now(),
-        totalTimeMs: elapsedMs,
-        totalSets: completedSetCount,
-        completedExerciseCount,
-        exercises,
-      };
+    const completedExerciseCount = completedSetsByExercise.filter((count) => count > 0).length;
+    const session = {
+      programType,
+      programTitle,
+      difficulty,
+      date: Date.now(),
+      totalTimeMs: elapsedMs,
+      totalSets: completedSetCount,
+      completedExerciseCount,
+      exercises,
+    };
 
-      await addHistorySession(session);
-      await addCloudSession({
+    // Show completion UI instantly; persist in background.
+    setCompletionVisible(true);
+    showToast('Workout session completed.');
+
+    Promise.allSettled([
+      addHistorySession(session),
+      addCloudSession({
         title: programTitle,
         kind: 'session',
         programType,
@@ -149,15 +153,17 @@ const ActiveWorkoutScreen = ({ navigation, route }) => {
         totalTimeMs: elapsedMs,
         date: new Date().toISOString().slice(0, 10),
         exercises,
+      }),
+    ])
+      .then((results) => {
+        const hasFailure = results.some((item) => item.status === 'rejected');
+        if (hasFailure) {
+          showToast('Session saved locally. Cloud sync will retry later.', 'error');
+        }
+      })
+      .finally(() => {
+        setSaving(false);
       });
-
-      setCompletionVisible(true);
-      showToast('Workout session completed.');
-    } catch (error) {
-      showToast('Could not save completed workout.', 'error');
-    } finally {
-      setSaving(false);
-    }
   };
 
   const onCloseCompletion = () => {

@@ -18,6 +18,8 @@ const WorkoutPlannerScreen = () => {
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingDay, setEditingDay] = useState('');
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const plannedWorkouts = useMemo(
     () => workouts.filter((item) => (item.kind || 'plan') === 'plan'),
@@ -32,12 +34,15 @@ const WorkoutPlannerScreen = () => {
       return;
     }
     try {
+      setSavingPlan(true);
       await addWorkout({ title: normalizedTitle, day: normalizedDay });
       showToast('Workout plan saved.');
       setTitle('');
       setDay('');
     } catch (error) {
       showToast('Could not save workout plan.', 'error');
+    } finally {
+      setSavingPlan(false);
     }
   };
 
@@ -61,11 +66,14 @@ const WorkoutPlannerScreen = () => {
       return;
     }
     try {
+      setSavingEdit(true);
       await updateWorkout(editingId, { title: normalizedTitle, day: normalizedDay });
       showToast('Workout plan updated.');
       cancelEditing();
     } catch (error) {
       showToast('Could not update workout plan.', 'error');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -95,7 +103,7 @@ const WorkoutPlannerScreen = () => {
           <Text style={styles.title}>Create Workout Plan</Text>
           <InputField label="Workout title" value={title} onChangeText={setTitle} placeholder="Upper Body Strength" />
           <InputField label="Day" value={day} onChangeText={setDay} placeholder="Monday" />
-          <AppButton title="Save Workout" onPress={onAddWorkout} />
+          <AppButton title="Save Workout" onPress={onAddWorkout} loading={savingPlan} />
         </Card>
         <Text style={styles.listTitle}>Your Plans</Text>
         {userDataError ? (
@@ -104,7 +112,7 @@ const WorkoutPlannerScreen = () => {
             <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
           </View>
         ) : null}
-        {loadingUserData ? <LoadingState label="Loading workouts..." /> : null}
+        {loadingUserData && !plannedWorkouts.length ? <LoadingState label="Loading workouts..." /> : null}
         <FlatList
           data={plannedWorkouts}
           keyExtractor={(item, index) => item.docId || `workout-${index}`}
@@ -116,7 +124,7 @@ const WorkoutPlannerScreen = () => {
                   <InputField label="Workout title" value={editingTitle} onChangeText={setEditingTitle} />
                   <InputField label="Day" value={editingDay} onChangeText={setEditingDay} />
                   <View style={styles.actionRow}>
-                    <AppButton title="Save" onPress={onSaveEdit} />
+                    <AppButton title="Save" onPress={onSaveEdit} loading={savingEdit} />
                     <AppButton title="Cancel" variant="secondary" onPress={cancelEditing} />
                   </View>
                 </>

@@ -16,6 +16,7 @@ const ProgressTrackingScreen = () => {
   const { showToast } = useToast();
   const [weight, setWeight] = useState('');
   const [completedWorkouts, setCompletedWorkouts] = useState('');
+  const [savingProgress, setSavingProgress] = useState(false);
 
   const onSave = async () => {
     const weightValue = Number(weight);
@@ -34,6 +35,7 @@ const ProgressTrackingScreen = () => {
       return;
     }
     try {
+      setSavingProgress(true);
       await addProgressEntry({
         weight: weightValue,
         completedWorkouts: workoutsValue,
@@ -44,6 +46,8 @@ const ProgressTrackingScreen = () => {
       setCompletedWorkouts('');
     } catch (error) {
       showToast('Could not save progress entry.', 'error');
+    } finally {
+      setSavingProgress(false);
     }
   };
 
@@ -105,7 +109,7 @@ const ProgressTrackingScreen = () => {
             placeholder="4"
             keyboardType="numeric"
           />
-          <AppButton title="Save Progress" onPress={onSave} />
+          <AppButton title="Save Progress" onPress={onSave} loading={savingProgress} />
         </Card>
 
         {userDataError ? (
@@ -114,7 +118,7 @@ const ProgressTrackingScreen = () => {
             <AppButton title="Retry Sync" variant="secondary" onPress={refreshUserData} />
           </View>
         ) : null}
-        {loadingUserData ? <LoadingState label="Loading progress history..." /> : null}
+        {loadingUserData && !progress.length ? <LoadingState label="Loading progress history..." /> : null}
         <Text style={styles.sectionTitle}>Weight Trend</Text>
         {chartData.labels.length > 0 ? (
           <LineChart

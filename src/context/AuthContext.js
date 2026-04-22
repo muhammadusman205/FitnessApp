@@ -19,12 +19,22 @@ export const AuthProvider = ({ children }) => {
       return undefined;
     }
 
+    let resolved = false;
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      resolved = true;
       setUser(nextUser);
       setAuthLoading(false);
     });
 
-    return unsubscribe;
+    // Avoid an indefinite loading state if auth listener stalls.
+    const fallbackTimer = setTimeout(() => {
+      if (!resolved) setAuthLoading(false);
+    }, 4000);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   const createConfigError = useCallback(() => {

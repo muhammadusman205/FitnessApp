@@ -102,6 +102,15 @@ const ExerciseListScreen = ({ navigation }) => {
     );
   };
 
+  const getExerciseItemLayout = useCallback(
+    (_data, index) => ({
+      length: 180,
+      offset: 180 * index,
+      index,
+    }),
+    []
+  );
+
   return (
     <ScreenContainer>
       <View style={styles.container}>
@@ -141,7 +150,7 @@ const ExerciseListScreen = ({ navigation }) => {
         <Text style={styles.recoLabel}>Goal Focus: {goal}</Text>
         <FlatList
           data={filteredExercises}
-          keyExtractor={(item, index) => (item.id != null ? String(item.id) : `ex-${index}`)}
+          keyExtractor={(item) => String(item.id ?? `${item.name ?? 'exercise'}-${item.target ?? 'target'}`)}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
           initialNumToRender={8}
@@ -149,6 +158,7 @@ const ExerciseListScreen = ({ navigation }) => {
           updateCellsBatchingPeriod={50}
           windowSize={8}
           removeClippedSubviews
+          getItemLayout={getExerciseItemLayout}
           renderItem={renderExercise}
           ListHeaderComponent={loadingExercises && !filteredExercises.length ? renderSkeletons : null}
           ListFooterComponent={renderFooter}

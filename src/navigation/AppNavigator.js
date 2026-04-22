@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -39,7 +39,7 @@ const ExerciseStackNavigator = () => (
   <ExerciseStack.Navigator
     screenOptions={{
       gestureEnabled: true,
-      animation: 'slide_from_right',
+      animation: 'fade',
       contentStyle: { backgroundColor: theme.colors.secondaryBackground },
     }}
   >
@@ -52,7 +52,7 @@ const HomeStackNavigator = () => (
   <HomeStack.Navigator
     screenOptions={{
       gestureEnabled: true,
-      animation: 'slide_from_right',
+      animation: 'fade',
       contentStyle: { backgroundColor: theme.colors.secondaryBackground },
     }}
   >
@@ -132,6 +132,7 @@ const AppNavigator = () => {
     return (
       <View style={styles.loader}>
         <ActivityIndicator color={theme.colors.primary} size="large" />
+        <Text style={styles.loaderText}>Loading your account...</Text>
       </View>
     );
   }
@@ -175,6 +176,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.secondaryBackground,
+    gap: theme.spacing.sm,
+  },
+  loaderText: {
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
   },
 });
 

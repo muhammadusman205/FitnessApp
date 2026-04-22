@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { InteractionManager } from 'react-native';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import {
@@ -34,6 +35,7 @@ export const FitnessProvider = ({ children }) => {
   const [loadingUserData, setLoadingUserData] = useState(false);
   const [userDataError, setUserDataError] = useState(null);
   const mountedRef = useRef(true);
+  const pendingFavoriteIdsRef = useRef(new Set());
 
   useEffect(() => {
     return () => {
@@ -71,6 +73,30 @@ export const FitnessProvider = ({ children }) => {
         nextPageRef.current = 1;
         setHasMore(cached.items.length >= PAGE_SIZE);
         setExercisesError(null);
+        setLoadingExercises(false);
+        // Refresh first page silently in the background.
+        fetchExercises(0, PAGE_SIZE)
+          .then(async (freshPage) => {
+            if (!mountedRef.current || !freshPage.length) return;
+            await setCachedExercises(freshPage);
+            setExercises((prev) => {
+              const next = [...freshPage];
+              const seen = new Set(next.map((item) => String(item.id)));
+              for (const item of prev) {
+                const sid = String(item.id);
+                if (!seen.has(sid)) {
+                  seen.add(sid);
+                  next.push(item);
+                }
+              }
+              return next;
+            });
+            nextPageRef.current = 1;
+            setHasMore(freshPage.length >= PAGE_SIZE);
+          })
+          .catch((error) => {
+            console.warn('[FitnessContext] Background exercise refresh failed:', error?.message);
+          });
         return;
       }
 
@@ -86,6 +112,7 @@ export const FitnessProvider = ({ children }) => {
     } catch (error) {
       console.warn('[FitnessContext] Failed to load exercises:', error?.message);
       if (!mountedRef.current) return;
+      // Fall back instantly to offline data by using API service fallback behavior.
       setExercises([]);
       setHasMore(false);
       setExercisesError('Could not load exercises right now. Please try again.');
@@ -97,7 +124,10 @@ export const FitnessProvider = ({ children }) => {
   }, [bodyPartFilter]);
 
   useEffect(() => {
-    loadInitialExercises();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadInitialExercises();
+    });
+    return () => task.cancel();
   }, [loadInitialExercises]);
 
   const loadMoreExercises = useCallback(async () => {
@@ -187,12 +217,18 @@ export const FitnessProvider = ({ children }) => {
   }, [user]);
 
   useEffect(() => {
-    loadUserData();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadUserData();
+    });
+    return () => task.cancel();
   }, [loadUserData]);
 
   const addFavorite = useCallback(
     async (exercise) => {
       if (!user) return;
+      const favoriteKey = String(exercise.id);
+      if (pendingFavoriteIdsRef.current.has(favoriteKey)) return;
+      pendingFavoriteIdsRef.current.add(favoriteKey);
       const tempDocId = createTempId('favorite');
       const optimistic = {
         docId: tempDocId,
@@ -221,16 +257,21 @@ export const FitnessProvider = ({ children }) => {
         );
       } catch (error) {
         setFavorites((prev) => prev.filter((item) => item.docId !== tempDocId));
-        await loadUserData();
+        setUserDataError('Could not sync favorites. Please try again.');
         throw error;
+      } finally {
+        pendingFavoriteIdsRef.current.delete(favoriteKey);
       }
     },
-    [createTempId, loadUserData, user]
+    [createTempId, user]
   );
 
   const removeFavorite = useCallback(
     async (favoriteItem) => {
       if (!user) return;
+      const favoriteKey = String(favoriteItem.id);
+      if (pendingFavoriteIdsRef.current.has(favoriteKey)) return;
+      pendingFavoriteIdsRef.current.add(favoriteKey);
       const backup = favoriteItem;
       setFavorites((prev) => prev.filter((item) => item.id !== favoriteItem.id));
       try {
@@ -239,11 +280,13 @@ export const FitnessProvider = ({ children }) => {
         }
       } catch (error) {
         setFavorites((prev) => [backup, ...prev]);
-        await loadUserData();
+        setUserDataError('Could not sync favorites. Please try again.');
         throw error;
+      } finally {
+        pendingFavoriteIdsRef.current.delete(favoriteKey);
       }
     },
-    [loadUserData, user]
+    [user]
   );
 
   const toggleFavorite = useCallback(
@@ -278,11 +321,11 @@ export const FitnessProvider = ({ children }) => {
         setWorkouts((prev) => prev.map((item) => (item.docId === tempDocId ? { ...item, docId: docRef.id } : item)));
       } catch (error) {
         setWorkouts((prev) => prev.filter((item) => item.docId !== tempDocId));
-        await loadUserData();
+        setUserDataError('Could not sync workout plans. Please try again.');
         throw error;
       }
     },
-    [createTempId, loadUserData, user]
+    [createTempId, user]
   );
 
   const updateWorkout = useCallback(
@@ -298,11 +341,11 @@ export const FitnessProvider = ({ children }) => {
         });
       } catch (error) {
         setWorkouts((prev) => prev.map((item) => (item.docId === workoutDocId ? previous : item)));
-        await loadUserData();
+        setUserDataError('Could not update workout plan. Please try again.');
         throw error;
       }
     },
-    [loadUserData, user, workouts]
+    [user, workouts]
   );
 
   const deleteWorkout = useCallback(
@@ -316,11 +359,11 @@ export const FitnessProvider = ({ children }) => {
         }
       } catch (error) {
         setWorkouts(previous);
-        await loadUserData();
+        setUserDataError('Could not delete workout plan. Please try again.');
         throw error;
       }
     },
-    [loadUserData, user, workouts]
+    [user, workouts]
   );
 
   const addWorkoutSession = useCallback(
@@ -343,11 +386,11 @@ export const FitnessProvider = ({ children }) => {
         setWorkouts((prev) => prev.map((item) => (item.docId === tempDocId ? { ...item, docId: docRef.id } : item)));
       } catch (error) {
         setWorkouts((prev) => prev.filter((item) => item.docId !== tempDocId));
-        await loadUserData();
+        setUserDataError('Could not sync completed workout. Please try again.');
         throw error;
       }
     },
-    [createTempId, loadUserData, user]
+    [createTempId, user]
   );
 
   const addProgressEntry = useCallback(
@@ -368,11 +411,11 @@ export const FitnessProvider = ({ children }) => {
         setProgress((prev) => prev.map((item) => (item.docId === tempDocId ? { ...item, docId: docRef.id } : item)));
       } catch (error) {
         setProgress((prev) => prev.filter((item) => item.docId !== tempDocId));
-        await loadUserData();
+        setUserDataError('Could not sync progress entry. Please try again.');
         throw error;
       }
     },
-    [createTempId, loadUserData, user]
+    [createTempId, user]
   );
 
   const deleteProgressEntry = useCallback(
@@ -386,11 +429,11 @@ export const FitnessProvider = ({ children }) => {
         }
       } catch (error) {
         setProgress(previous);
-        await loadUserData();
+        setUserDataError('Could not delete progress entry. Please try again.');
         throw error;
       }
     },
-    [loadUserData, progress, user]
+    [progress, user]
   );
 
   const updateGoal = async (nextGoal) => {
