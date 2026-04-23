@@ -9,11 +9,9 @@ import SignupScreen from '../screens/SignupScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ProgramDetailScreen from '../screens/ProgramDetailScreen';
 import ExerciseListScreen from '../screens/ExerciseListScreen';
-import { getProgramById } from '../data/workoutPrograms';
+import { getProgramById, WORKOUT_PROGRAMS } from '../data/workoutPrograms';
 import ExerciseDetailScreen from '../screens/ExerciseDetailScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
-import WorkoutPlannerScreen from '../screens/WorkoutPlannerScreen';
-import ProgressTrackingScreen from '../screens/ProgressTrackingScreen';
 import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,6 +20,7 @@ const AuthStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const ExerciseStack = createNativeStackNavigator();
 const HomeStack = createNativeStackNavigator();
+const WorkoutStack = createNativeStackNavigator();
 
 const navTheme = {
   ...DefaultTheme,
@@ -73,6 +72,23 @@ const HomeStackNavigator = () => (
   </HomeStack.Navigator>
 );
 
+const WorkoutStackNavigator = () => (
+  <WorkoutStack.Navigator
+    screenOptions={{
+      gestureEnabled: true,
+      animation: 'fade',
+      contentStyle: { backgroundColor: theme.colors.secondaryBackground },
+    }}
+  >
+    <WorkoutStack.Screen
+      name="WorkoutProgram"
+      component={ProgramDetailScreen}
+      initialParams={{ programId: WORKOUT_PROGRAMS[0]?.id }}
+      options={{ title: 'Workout Program' }}
+    />
+  </WorkoutStack.Navigator>
+);
+
 const TabsNavigator = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -98,16 +114,14 @@ const TabsNavigator = () => (
           return <MaterialCommunityIcons name="dumbbell" size={iconSize} color={color} />;
         }
         if (route.name === 'Favorites') return <Ionicons name="heart-outline" size={iconSize} color={color} />;
-        if (route.name === 'Planner') return <Ionicons name="calendar-outline" size={iconSize} color={color} />;
-        return <Ionicons name="stats-chart-outline" size={iconSize} color={color} />;
+        return <Ionicons name="barbell-outline" size={iconSize} color={color} />;
       },
     })}
   >
     <Tab.Screen name="Home" component={HomeStackNavigator} />
     <Tab.Screen name="Exercises" component={ExerciseStackNavigator} />
     <Tab.Screen name="Favorites" component={FavoritesScreen} />
-    <Tab.Screen name="Planner" component={WorkoutPlannerScreen} />
-    <Tab.Screen name="Progress" component={ProgressTrackingScreen} />
+    <Tab.Screen name="Workout" component={WorkoutStackNavigator} />
   </Tab.Navigator>
 );
 

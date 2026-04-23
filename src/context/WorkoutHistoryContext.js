@@ -46,37 +46,13 @@ export const WorkoutHistoryProvider = ({ children }) => {
     });
   }, []);
 
-  const getLastWorkoutByType = useCallback(
-    (type) => {
-      if (!type) return null;
-      return completedWorkouts.find((w) => w.programType === type) ?? null;
-    },
-    [completedWorkouts]
-  );
-
-  const getRecentMuscleLoad = useCallback(() => {
-    const now = Date.now();
-    const windowMs = 21 * 24 * 60 * 60 * 1000;
-    const counts = {};
-    for (const w of completedWorkouts) {
-      if (typeof w.date !== 'number' || now - w.date > windowMs) continue;
-      for (const ex of w.exercises || []) {
-        const k = (ex.target || '').toLowerCase().trim() || 'general';
-        counts[k] = (counts[k] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [completedWorkouts]);
-
   const value = useMemo(
     () => ({
       completedWorkouts,
       hydrated,
       addWorkoutSession,
-      getLastWorkoutByType,
-      getRecentMuscleLoad,
     }),
-    [completedWorkouts, hydrated, addWorkoutSession, getLastWorkoutByType, getRecentMuscleLoad]
+    [completedWorkouts, hydrated, addWorkoutSession]
   );
 
   return <WorkoutHistoryContext.Provider value={value}>{children}</WorkoutHistoryContext.Provider>;

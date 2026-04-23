@@ -39,8 +39,6 @@ const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const {
     favorites,
-    workouts,
-    progress,
     goal,
     updateGoal,
     loadingUserData,
@@ -56,11 +54,7 @@ const HomeScreen = ({ navigation }) => {
   const { completedWorkouts } = useWorkoutHistory();
   const { showToast } = useToast();
 
-  const plannedWorkouts = useMemo(
-    () => workouts.filter((item) => (item.kind || 'plan') === 'plan'),
-    [workouts]
-  );
-  const hasAnyUserData = favorites.length > 0 || plannedWorkouts.length > 0 || progress.length > 0;
+  const hasAnyUserData = favorites.length > 0;
 
   const lastSession = completedWorkouts[0] || null;
   const resumeTitle = lastSession?.programTitle || `${lastSession?.programType || 'Session'} workout`;
@@ -68,11 +62,7 @@ const HomeScreen = ({ navigation }) => {
     ? `${lastSession.exercises?.[0]?.name || 'Exercise'} · ${new Date(lastSession.date).toLocaleDateString()}`
     : '';
 
-  const stats = [
-    { label: 'Favorites', value: favorites.length },
-    { label: 'Planned', value: plannedWorkouts.length },
-    { label: 'Logs', value: progress.length },
-  ];
+  const stats = [{ label: 'Favorites', value: favorites.length }];
 
   const onGoalSelect = async (nextGoal) => {
     try {
@@ -91,8 +81,6 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const weeklyWorkouts = progress.slice(-7).reduce((sum, item) => sum + (Number(item.completedWorkouts) || 0), 0);
-  const consistency = `${Math.min(progress.slice(-7).length, 7)}/7 days`;
   const topRecommendations = recommendedExercises.slice(0, 12);
   const favoriteIds = useMemo(() => new Set(favorites.map((item) => item.id)), [favorites]);
   const sectionFade = useFadeIn(0, 80);
@@ -329,11 +317,6 @@ const HomeScreen = ({ navigation }) => {
             </Card>
           ))}
         </View>
-        <Card style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>This week</Text>
-          <Text style={styles.summaryText}>Workouts completed: {weeklyWorkouts}</Text>
-          <Text style={styles.summaryText}>Consistency: {consistency}</Text>
-        </Card>
       </ScrollView>
     </ScreenContainer>
   );
@@ -502,19 +485,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: theme.colors.textSecondary,
     fontSize: 12,
-  },
-  summaryCard: {
-    marginTop: theme.spacing.sm,
-    backgroundColor: theme.colors.cardTintBlueLight,
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  summaryText: {
-    marginTop: 6,
-    color: theme.colors.textSecondary,
   },
   errorCard: {
     marginBottom: theme.spacing.md,
